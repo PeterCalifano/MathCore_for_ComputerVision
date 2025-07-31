@@ -31,7 +31,8 @@ classdef CQuatKinematicsIntegrator < handle & matlab.mixin.Copyable
                                                                     enumMethod, ...
                                                                     dDeltaT, ...
                                                                     dDefaultMaxDeltaT, ...
-                                                                    dAngVelTimegrid)
+                                                                    dAngVelTimegrid, ...
+                                                                    enumInterpMethod)
             arguments
                 self                (1,1) CQuatKinematicsIntegrator
                 dQuat0              (4,1) double {mustBeFinite}
@@ -41,6 +42,7 @@ classdef CQuatKinematicsIntegrator < handle & matlab.mixin.Copyable
                 dDeltaT             (1,1) double {mustBeScalarOrEmpty, mustBeGreaterThanOrEqual(dDeltaT, 0.0)} = 0.0;
                 dDefaultMaxDeltaT   (1,1) double {mustBeScalarOrEmpty, mustBeGreaterThanOrEqual(dDefaultMaxDeltaT, 0.0)} = 1.0;
                 dAngVelTimegrid     = [];
+                enumInterpMethod    char {mustBeMember(enumInterpMethod, ["linear", "spline"])} = "linear";
             end
 
             bDeduceDeltaT = dDeltaT == 0.0;
@@ -76,8 +78,9 @@ classdef CQuatKinematicsIntegrator < handle & matlab.mixin.Copyable
                             'ERROR: angular velocity profile size must match size of input timegrid dAngVelTimegrid.');
                     end
 
-                    % Define angular velocity spline
-                    varOmegaAngVel_ = @(dTstamp) spline(dAngVelTimegrid, varOmegaAngVel, dTstamp);
+                    % Define angular velocity interpolant
+                    % varOmegaAngVel_ = @(dTstamp) spline(dAngVelTimegrid, varOmegaAngVel, dTstamp);
+                    varOmegaAngVel_ = @(dTstamp) transpose(interp1(dAngVelTimegrid - dAngVelTimegrid(1), varOmegaAngVel', dTstamp, enumInterpMethod));
 
                 end
 
@@ -119,6 +122,7 @@ classdef CQuatKinematicsIntegrator < handle & matlab.mixin.Copyable
 
                 % Internal loop (over single step between timegrid entries
                 dAccumStepTime = 0.0;
+                
                 while (dNextTargetTime - dInternalLoopTime_) > 1.5 * eps
                 
                     % Update integration time step
@@ -137,9 +141,11 @@ classdef CQuatKinematicsIntegrator < handle & matlab.mixin.Copyable
                     % Integrate over dTmpDeltaStep time
                     dTmpQuatOut = fcnQuatIntegr(dTmpQuatOut, varOmegaAngVel_, dCurrentTime, dTmpDeltaStep);
 
+                    % Update time counters
                     dInternalLoopTime_ = dInternalLoopTime_ + dTmpDeltaStep;
                     dAccumStepTime = dAccumStepTime + dTmpDeltaStep;
                 end
+                
 
                 % Update current index and timegrid
                 dCurrentTime = round(dInternalLoopTime_, 16); % dTimegrid(ui32CurrentIntegrStepIdx) + dAccumStepTime;
@@ -338,6 +344,8 @@ classdef CQuatKinematicsIntegrator < handle & matlab.mixin.Copyable
             dvTmpK2 = dInvRightJacPsi * fcnEvalOmegaAngVel(dTstamp + 0.5 * dDeltaTime);
             dvTmpK3 = dInvRightJacPsi * fcnEvalOmegaAngVel(dTstamp + 0.5 * dDeltaTime);
             dvTmpK4 = dInvRightJacPsi * fcnEvalOmegaAngVel(dTstamp + dDeltaTime);
+
+            assert(all(not(isnan(dvTmpK1))) , 'ERROR: nan detected in integration step. Interpolant of angular velocity may have failed.');
 
             % Compute delta quaternion and update current solution
             dTmpOmegaDelta  = (dvTmpK1 + 2*dvTmpK2 + 2*dvTmpK3 + dvTmpK4) * (dDeltaTime/6);
