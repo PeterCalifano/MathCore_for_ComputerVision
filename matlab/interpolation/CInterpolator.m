@@ -24,6 +24,8 @@ classdef (Abstract) CInterpolator < handle
         % Settings
         enumInterpType;
         bEnableAutoFitCheck;
+        bEnableErrorThrow  (1,1) logical {isscalar} = true
+        dPercRelErrorTol   (1,1) double {isscalar} = 0.1
         ui8PolyDeg;
         
         % Data
@@ -52,26 +54,32 @@ classdef (Abstract) CInterpolator < handle
                                     enumInterpType, ...
                                     bEnableAutoFitCheck, ...
                                     dDomainBounds, ...
-                                    i32OutputVectorSize)
+                                    i32OutputVectorSize, ...
+                                    bEnableErrorThrow, ...
+                                    dPercRelErrorTol )
             arguments
-                dInterpDomain (1,:) double {isnumeric, isvector}
-                ui8PolyDeg    (1,1) uint8 {isnumeric, isscalar} = 15
-                enumInterpType (1,1) {isa(enumInterpType, 'EnumInterpType')} = EnumInterpType.VECTOR
+                dInterpDomain       (1,:) double {isnumeric, isvector}
+                ui8PolyDeg          (1,1) uint8 {isnumeric, isscalar} = 15
+                enumInterpType      (1,1) {isa(enumInterpType, 'EnumInterpType')} = EnumInterpType.VECTOR
                 bEnableAutoFitCheck (1,1) logical {islogical} = true
-                dDomainBounds (1, 2) double {isnumeric, isvector} = zeros(1,2)
+                dDomainBounds       (1,2) double {isnumeric, isvector} = zeros(1,2)
                 i32OutputVectorSize (1,1) int32 {isnumeric, isscalar} = -1 % Expected output size for checks
+                bEnableErrorThrow   (1,1) logical {islogical, isscalar} = true
+                dPercRelErrorTol    (1,1) double {isnumeric, isscalar}  = 0.1
             end
             
             assert(ui8PolyDeg > 1, "MATLAB:assert:failed", 'Interpolant degree must be > 1.')
             assert(length(dInterpDomain) > ui8PolyDeg, 'Size of interpolation domanin and data must be greater than the requested ui8PolyDeg.')
 
             % Save class data members
-            self.enumInterpType = enumInterpType;
-            self.ui8PolyDeg    = ui8PolyDeg;
-            self.dInterpDomain = dInterpDomain;
-            self.bEnableAutoFitCheck = bEnableAutoFitCheck;
-            self.i32OutputVectorSize = i32OutputVectorSize;
-            
+            self.enumInterpType         = enumInterpType;
+            self.ui8PolyDeg             = ui8PolyDeg;
+            self.dInterpDomain          = dInterpDomain;
+            self.bEnableAutoFitCheck    = bEnableAutoFitCheck;
+            self.i32OutputVectorSize    = i32OutputVectorSize;
+            self.bEnableErrorThrow      = bEnableErrorThrow;
+            self.dPercRelErrorTol       = dPercRelErrorTol;
+
             if i32OutputVectorSize == -1
                 warning('Expected output size not provided. Interpolator will get it from data matrix, and will not perform validation checks.')
             end
@@ -96,8 +104,6 @@ classdef (Abstract) CInterpolator < handle
     end
 
     methods (Access = protected)
-        % DEVNOTE: function to remove sign discontinuity in quaternions to improve fitting of Chebyshev
-        % polynomials. Derived from fixQuatSignDiscontinuity function, developed for FUTURE, PC, 23-11-2024
         function [self, dModifiedDataMatrix, dSwitchIntervals, bIsSignSwitched, ...
                 ui8HowManySwitches ] = fixQuatSignDiscontinuity(self, dQuatMatrix_fromAtoB) %#codegen
             arguments
@@ -106,49 +112,48 @@ classdef (Abstract) CInterpolator < handle
             end
 
             % Sign discontinuity detection and fix
-            self.bSignSwitchDetectionMask = sign(dQuatMatrix_fromAtoB(:, 1:3));
-            self.bSignSwitchDetectionMask = all( ischange(self.bSignSwitchDetectionMask), 2);
-            self.ui8HowManySwitches = uint8(sum(self.bSignSwitchDetectionMask == true));
+            self.ui8HowManySwitches = uint8(0);
 
-            assert(self.ui8HowManySwitches <= 255, 'SAFETY STOP: possible overflow in self.ui8howManySwitches due to presence of >255 switches!')
+            % Initialize output variables
+            ui32NumOfTimes      = uint32(size(dQuatMatrix_fromAtoB, 1));
 
-            dInterpSignal = dQuatMatrix_fromAtoB;
-            self.bIsSignSwitched = false(size(dQuatMatrix_fromAtoB, 2), 1);
+            self.bSignSwitchDetectionMask = false(ui32NumOfTimes, 1);
+            self.bIsSignSwitched          = false(ui32NumOfTimes, 1);
 
-            if self.ui8HowManySwitches > 0
-                % Get where the switches happens
-                ui32SwitchIdx = uint32(find(self.bSignSwitchDetectionMask, self.ui8HowManySwitches));
+            bIsNewJump = true;
+            for idT = 1:ui32NumOfTimes
 
-                ui32StartIntervalsIDs = uint32(1:2:length(ui32SwitchIdx));
+                if idT > 1
 
-                for idToFix = ui32StartIntervalsIDs
+                    % Check sign change of the max component of the quaternion
+                    [~, ui32MaxCompIdx] = max( abs( dQuatMatrix_fromAtoB(idT,:) ) );
 
-                    idStart = ui32SwitchIdx(idToFix);
+                    % Check if product of previous timestamp and current has negative sign
+                    if dQuatMatrix_fromAtoB(idT, ui32MaxCompIdx) * dQuatMatrix_fromAtoB(idT-1,ui32MaxCompIdx) < 0
+                        % Jump detected: switch sign
+                        dQuatMatrix_fromAtoB(idT,:) = - dQuatMatrix_fromAtoB(idT,:);
 
-                    if (idToFix == ui32StartIntervalsIDs(end) && length(ui32StartIntervalsIDs) > 1) ...
-                            && mod(self.ui8HowManySwitches, 2) ~= 0 || ...
-                            length(ui32SwitchIdx) == 1
+                        self.bIsSignSwitched(idT) = true;
 
-                        idEnd = length(dInterpSignal);
-
-                    elseif (idToFix == ui32StartIntervalsIDs(end) && length(ui32StartIntervalsIDs) > 1) ...
-                            && mod(self.ui8HowManySwitches, 2) == 0
-
-                        idEnd = ui32SwitchIdx(end)-1;
-
+                        if bIsNewJump
+                            self.bSignSwitchDetectionMask(idT) = true;
+                            self.ui8HowManySwitches = self.ui8HowManySwitches + 1;
+                            bIsNewJump = false;
+                        end
                     else
-                        idEnd = ui32SwitchIdx(idToFix+1)-1 ;
+                        bIsNewJump = true;
                     end
 
-                    dInterpSignal(idStart:idEnd, :) = -dInterpSignal(idStart:idEnd, :);
-                    self.bIsSignSwitched(idStart:idEnd) = true;
-
                 end
-            end
-            % Return fixed data matrix
-            dModifiedDataMatrix = dInterpSignal';
 
-            assert(sum(all(ischange(sign(dInterpSignal)), 2) == true) == 0, 'Something may have gone wrong in fixing the discontinuity!')
+            end
+
+
+            % Return fixed data matrix
+            dModifiedDataMatrix = dQuatMatrix_fromAtoB';
+
+            assert(sum(all(ischange(sign(dQuatMatrix_fromAtoB)), 2) == true) == 0, 'Something may have gone wrong in fixing the discontinuity!')
+            assert(self.ui8HowManySwitches <= 255, 'SAFETY STOP: possible overflow in self.ui8howManySwitches due to presence of >255 switches!')
 
             % Determine sign switch intervals and store in data members
             self.dSwitchIntervals = zeros(self.ui8HowManySwitches, 2, 'double');
@@ -160,11 +165,11 @@ classdef (Abstract) CInterpolator < handle
                 ui32HowManySamples = length(self.bIsSignSwitched);
 
                 for idC = 1:self.ui8HowManySwitches
-                    idtmp = self.dSwitchIntervals(idC);
-                    while idtmp < ui32HowManySamples && self.bIsSignSwitched(idtmp) == 1
-                        idtmp = idtmp + 1;
+                    idTmp = self.dSwitchIntervals(idC);
+                    while idTmp < ui32HowManySamples && self.bIsSignSwitched(idTmp) == 1
+                        idTmp = idTmp + 1;
                     end
-                    self.dSwitchIntervals(idC, 2) = idtmp;
+                    self.dSwitchIntervals(idC, 2) = idTmp;
                 end
             end
 
@@ -176,11 +181,17 @@ classdef (Abstract) CInterpolator < handle
 
     methods (Access = public)
         % Fitting check method
-        function [self, strFitStats] = checkFitPoly(self, dEvalDomain, dDataMatrix)
+        function [self, strFitStats] = checkFitPoly(self, ...
+                                                   dEvalDomain, ...
+                                                   dDataMatrix, ...
+                                                   bEnableErrorThrow, ...
+                                                   dPercRelErrorTol)
             arguments
                 self,
                 dEvalDomain (1,:) double {isnumeric}
                 dDataMatrix (:,:) double {ismatrix, isnumeric}
+                bEnableErrorThrow   (1,1) logical {islogical, isscalar} = self.bEnableErrorThrow
+                dPercRelErrorTol    (1,1) double {isnumeric, isscalar}  = self.dPercRelErrorTol
             end
             
             % HARDCODED OPTIONS
@@ -218,9 +229,9 @@ classdef (Abstract) CInterpolator < handle
             % Get points
             dTestPoints_Time = [dEvalDomain(1); dEvalDomain(ui32testpointsIDs)'; dEvalDomain(end)];
             dTestPoints_Labels = [dDataMatrix(:, 1),...
-                dDataMatrix(:, ui32testpointsIDs), ...
-                dDataMatrix(:, end)];
-            
+                                dDataMatrix(:, ui32testpointsIDs), ...
+                                dDataMatrix(:, end)];
+                            
             % Evaluate interpolant
             dChbvInterpVector = zeros(i32OutputSize, length(dTestPoints_Time));
             evalRunTime = zeros(length(dTestPoints_Time), 1);
@@ -231,7 +242,8 @@ classdef (Abstract) CInterpolator < handle
                 % Evaluate interpolant
                 tic;
 
-                [self, dChbvInterpVector(:, idP)] = self.evalInterpolant(dEvalPoint, true); 
+                [self, dChbvInterpVector(:, idP)] = self.evalInterpolant(dEvalPoint, true);
+                
                 evalRunTime(idP) = toc;
             end
             fprintf("\nAverage interpolant evaluation time: %4.4g [s]\n", mean(evalRunTime))
@@ -247,6 +259,12 @@ classdef (Abstract) CInterpolator < handle
 
                 fprintf('Max absolute difference of (q1-dot-q2 - 1): %4.4g [-]\n', strFitStats.dMaxAbsErr);
                 fprintf('Average absolute difference of (q1-dot-q2 - 1): %4.4g [-]\n', strFitStats.dAvgAbsErr);
+
+                if bEnableErrorThrow
+                    assert( all([strFitStats.dAvgAbsErr, strFitStats.dMaxAbsErr] < 1E-3), ...
+                        ['ERROR: fitting validation failed to meet tolerances for attitude quaternion. ' ...
+                        'Found distance greater than 1E-3 at sampling nodes.']);
+                end
 
             else
                 strFitStats.dAbsErrVec = abs(dChbvInterpVector - dTestPoints_Labels);
@@ -266,6 +284,12 @@ classdef (Abstract) CInterpolator < handle
                 fprintf('\nMax relative error: %4.4g [%%]\n', strFitStats.dMaxRelErr);
                 fprintf('Average relative error: %4.4g, %4.4g, %4.4g [%%]\n', strFitStats.dAvgRelErr(1), ...
                     strFitStats.dAvgRelErr(2), strFitStats.dAvgRelErr(3));
+
+                if bEnableErrorThrow
+                    assert( all([strFitStats.dMaxRelErr, max(strFitStats.dAvgRelErr)] <= dPercRelErrorTol), ...
+                        ['ERROR: fitting validation failed to meet relative tolerances. ' ...
+                        'Found relative error greater than 0.1% at sampling nodes.']);
+                end
             end
 
 
