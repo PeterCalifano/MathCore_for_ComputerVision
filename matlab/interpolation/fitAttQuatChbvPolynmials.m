@@ -53,8 +53,11 @@ end
 % 18-07-2025        Pietro Califano     Fix basis and fitting problem errors
 % -------------------------------------------------------------------------------------------------------------
 %% DEPENDENCIES
-% [-]
+% fixQuatSignDiscontinuity()
+% EvalRecursiveChbv()
+% checkFitChbvPoly() if check is enabled
 % -------------------------------------------------------------------------------------------------------------
+
 %% Function code
 
 % Check input dimensions
@@ -120,7 +123,7 @@ dChbvCoeffs(1:ui32PtrToLastCoeff) = dChbvCoeffs_matrixT(:);
 %% Automatic error check
 if bENABLE_FIT_CHECK == true
     [strfitStats] = checkFitChbvPoly(ui32PolyDeg, dInterpDomain, dChbvCoeffs, ...
-        dDataMatrix, dDomainLB, dDomainUB, true, dswitchIntervals);
+        dDataMatrix, dDomainLB, dDomainUB, true, dswitchIntervals, true);
 else
     strfitStats = struct();
 end

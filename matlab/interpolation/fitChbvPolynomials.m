@@ -1,24 +1,30 @@
 function [dChbvCoeffs, dScaledInterpDomain, strfitStats] = fitChbvPolynomials(ui32PolyDeg, ...
-    dInterpDomain, ...
-    dDataMatrix, ...
-    dDomainLB, ...
-    dDomainUB, ...
-    bENABLE_FIT_CHECK) %#codegen
+                                                                                dInterpDomain, ...
+                                                                                dDataMatrix, ...
+                                                                                dDomainLB, ...
+                                                                                dDomainUB, ...
+                                                                                bENABLE_FIT_CHECK, ...
+                                                                                bEnableErrorThrow, ...
+                                                                                dPercRelErrorTol) %#codegen
 arguments
-    ui32PolyDeg         (1, 1) uint32
-    dInterpDomain       (:, 1) double
-    dDataMatrix         (:, :) double
-    dDomainLB           (1, 1) double 
-    dDomainUB           (1, 1) double  
-    bENABLE_FIT_CHECK   (1, 1) logical = true
+    ui32PolyDeg         (1,1) uint32
+    dInterpDomain       (:,1) double
+    dDataMatrix         (:,:) double
+    dDomainLB           (1,1) double 
+    dDomainUB           (1,1) double  
+    bENABLE_FIT_CHECK   (1,1) logical = true
+    bEnableErrorThrow   (1,1) logical {islogical, isscalar} = true
+    dPercRelErrorTol    (1,1) double {isnumeric, isscalar} = 0.1
 end
 %% PROTOTYPE
 % [dChbvCoeffs, dScaledInterpDomain, strfitStats] = fitChbvPolynomials(ui32PolyDeg, ...
-%     dInterpDomain, ...
-%     dDataMatrix, ...
-%     dDomainLB, ...
-%     dDomainUB, ...
-%     bENABLE_FIT_CHECK) %#codegen
+%                                                                      dInterpDomain, ...
+%                                                                      dDataMatrix, ...
+%                                                                      dDomainLB, ...
+%                                                                      dDomainUB, ...
+%                                                                      bENABLE_FIT_CHECK, ...
+%                                                                      bEnableErrorThrow, ...
+%                                                                      dPercRelErrorTol) %#codegen
 % -------------------------------------------------------------------------------------------------------------
 %% DESCRIPTION
 % Function for fitting interpolation coefficients of Chebyshev Polynomial up to the specified degree. The
@@ -28,12 +34,14 @@ end
 % degree. The scaling to [-1,1] domain is automatically handled.
 % -------------------------------------------------------------------------------------------------------------
 %% INPUT
-% ui8PolyDeg
-% dInterpDomain
-% dDataMatrix
-% dDomainLB
-% dDomainUB
-% bENABLE_AUTCHECK
+% ui32PolyDeg         (1,1) uint32
+% dInterpDomain       (:,1) double
+% dDataMatrix         (:,:) double
+% dDomainLB           (1,1) double
+% dDomainUB           (1,1) double
+% bENABLE_FIT_CHECK   (1,1) logical = true
+% bEnableErrorThrow   (1,1) logical {islogical, isscalar} = true
+% dPercRelErrorTol    (1,1) double {isnumeric, isscalar} = 0.1
 % -------------------------------------------------------------------------------------------------------------
 %% OUTPUT
 % dChbvCoeffs
@@ -41,21 +49,17 @@ end
 % strfitStats
 % -------------------------------------------------------------------------------------------------------------
 %% CHANGELOG
-% 07-04-2024        Pietro Califano         First version. Validated.
-% 08-05-2024        Pietro Califano         Updated with error checks.
+% 07-04-2024        Pietro Califano     First version. Validated.
+% 08-05-2024        Pietro Califano     Updated with error checks.
 % 18-07-2025        Pietro Califano     Fix basis and fitting problem errors
+% 06-08-2025        Pietro Califano     Update input options to set error tols
 % -------------------------------------------------------------------------------------------------------------
 %% DEPENDENCIES
-% [-]
+% checkFitChbvPoly() if check is enabled
+% EvalRecursiveChbv()
 % -------------------------------------------------------------------------------------------------------------
-%% Future upgrades
-% [-]
-% -------------------------------------------------------------------------------------------------------------
-%% Function code
 
-if nargin < 6
-    bENABLE_FIT_CHECK = true;
-end
+%% Function code
 
 % Check input dimensions
 % dDataMatrix: [L, N] where N is the number of points, L is the output vector size
@@ -97,9 +101,9 @@ dChbvCoeffs_matrixT = dRegrMatrix' \ dDataMatrix'; % Solve the transposed proble
 % Flatten matrix to 1D vector
 dChbvCoeffs(1:end) = dChbvCoeffs_matrixT(:);
 
-if bENABLE_FIT_CHECK == true && not(isempty('evalChbvPolyWithCoeffs.m'))
+if bENABLE_FIT_CHECK == true
         [strfitStats] = checkFitChbvPoly(ui32PolyDeg, dInterpDomain, dChbvCoeffs, ...
-            dDataMatrix, dDomainLB, dDomainUB, false);
+            dDataMatrix, dDomainLB, dDomainUB, false, [], true, dPercRelErrorTol);
 else
     strfitStats = struct();
 end

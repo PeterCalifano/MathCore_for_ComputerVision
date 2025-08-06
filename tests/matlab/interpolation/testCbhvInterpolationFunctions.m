@@ -290,13 +290,12 @@ classdef testCbhvInterpolationFunctions < matlab.unittest.TestCase
             % Runge function: f(x) = 1/(1 + 25*x^2) - known to be challenging
             dDataMatrix = 1 ./ (1 + 25 * dInterpDomain'.^2);
             
-            ui32PolyDeg = uint32(30);
+            ui32PolyDeg = uint32(45);
             dDomainLB = -1;
             dDomainUB = 1;
             
-            [dChbvCoeffs, ~, ~] = ...
-                fitChbvPolynomials(ui32PolyDeg, dInterpDomain, dDataMatrix, ...
-                                 dDomainLB, dDomainUB, true);
+            [dChbvCoeffs, ~, ~] = fitChbvPolynomials(ui32PolyDeg, dInterpDomain, dDataMatrix, ...
+                                                 dDomainLB, dDomainUB, true);
             
             % Test interpolation at intermediate points
             testPoints = [-0.7, -0.3, 0.2, 0.6];
