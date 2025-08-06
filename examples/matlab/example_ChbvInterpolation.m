@@ -18,7 +18,9 @@ dDataMatrix = [sin(dTimes)'; cos(dTimes)'; dTimes'.^2];
                                                                 dDataMatrix, ...
                                                                 dDomainLB, ...
                                                                 dDomainUB, ...
-                                                                true);
+                                                                true, ...
+                                                                true, ...
+                                                                0.1);
 
 % Test interpolation at a few points
 dTestTimeIDs = randi(length(dTimesInSeconds), 6);
@@ -38,7 +40,7 @@ end
 
 return
 
-%% Attitude quaternion (4-d vector in S^2)
+%% Attitude quaternion (4-d vector in S^3)
 % Create smooth quaternion trajectory
 dAxis = [0; 0; 1]; % Rotation about z-axis
 dAngles = pi/2 * dTimes; % 90 degree rotation over time
