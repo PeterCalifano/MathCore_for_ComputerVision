@@ -37,6 +37,10 @@ end
 % -------------------------------------------------------------------------------------------------------------
 %% Function code
 
+if coder.target('MATLAB') || coder.target('MEX')
+    assert( all(abs(dQuatRot) <= 1.0 + eps, 'all'), 'ERROR: invalid quaternion array. Must have a unitary norm!')
+end
+
 % DCM initialization
 dDCM = coder.nullcopy(zeros(3,3));
 
