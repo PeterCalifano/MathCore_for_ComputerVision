@@ -1,5 +1,5 @@
-function [dDataMatrix, bIsSignSwitched, ui8howManySwitches, bsignSwitchDetectionMask] =...
-    fixQuatSignDiscontinuity(dQuat_fromAtoB) %#codegen
+function [dDataMatrix, bIsSignSwitched, ui8howManySwitches, bSignSwitchDetectionMask] =...
+                            fixQuatSignDiscontinuity(dQuat_fromAtoB) %#codegen
 arguments
     dQuat_fromAtoB (:, 4) double {isvector, isnumeric}
 end
@@ -20,63 +20,62 @@ end
 % bsignSwitchDetectionMask
 % -------------------------------------------------------------------------------------------------------------
 %% CHANGELOG
-% 02-05-2024        Pietro Califano         Adapted from testChebyshevInterpolation script.
-% 07-12-2024        Pietro Califano         Major bug fix in discontinuity detection (last occurrence was
-%                                           being fixed incorrectly in some cases)
-% 18-07-2025        Pietro Califano         Improve robustness of sign switch detection
+% 02-05-2024    Pietro Califano     Adapted from testChebyshevInterpolation script.
+% 07-12-2024    Pietro Califano     Major bug fix in discontinuity detection (last occurrence was
+%                                       being fixed incorrectly in some cases)
+% 18-07-2025    Pietro Califano     Improve robustness of sign switch detection
+% 06-08-2025    Pietro Califano     [HOTFIX] Replace sign switch detection method with more robust one.
+%                                   Previous method wasu failing in case any of smooth zero crossing of 
+%                                   any of the components!
 % -------------------------------------------------------------------------------------------------------------
 %% DEPENDENCIES
 % [-]
 % -------------------------------------------------------------------------------------------------------------
-%% Future upgrades
-% [-]
-% -------------------------------------------------------------------------------------------------------------
+
 %% Function code
 
 % Sign discontinuity detector and fix (ATTITUDE QUATERNION ONLY)
-bsignSwitchDetectionMask = sign(dQuat_fromAtoB(:, 1:4)); % Use first component as sign check
-% FIXME: switch detection is not robust to cases in which any of the quaternion states jumps
 
-bsignSwitchDetectionMask = any( ischange(bsignSwitchDetectionMask), 2);
-ui8howManySwitches = uint8(sum(bsignSwitchDetectionMask == true));
-interpSignal = dQuat_fromAtoB;
-bIsSignSwitched = false(size(dQuat_fromAtoB, 2), 1);
+% Initialize output variables
+ui32NumOfTimes      = uint32(size(dQuat_fromAtoB, 1));
+ui8howManySwitches  = uint8(0);
 
-if ui8howManySwitches > 0
-    % Get where the switches happens
-    switchIdx = find(bsignSwitchDetectionMask, ui8howManySwitches);
+bSignSwitchDetectionMask = false(ui32NumOfTimes, 1);
+bIsSignSwitched          = false(ui32NumOfTimes, 1);
 
-    startIntervalsIDs = 1:2:length(switchIdx);
+bIsNewJump = true;
+for idT = 1:ui32NumOfTimes
 
-    for idToFix = startIntervalsIDs
+    if idT > 1
 
-        idStart = switchIdx(idToFix);
+        % Check sign change of the max component of the quaternion 
+        [~, ui32MaxCompIdx] = max( abs( dQuat_fromAtoB(idT,:) ) );
 
-        if (idToFix == startIntervalsIDs(end) && length(startIntervalsIDs) > 1) ...
-                && mod(double(ui8howManySwitches), 2) ~= 0 || isscalar(switchIdx)
+        % Check if product of previous timestamp and current has negative sign
+        if dQuat_fromAtoB(idT, ui32MaxCompIdx) * dQuat_fromAtoB(idT-1,ui32MaxCompIdx) < 0
+            % Jump detected: switch sign
+            dQuat_fromAtoB(idT,:) = - dQuat_fromAtoB(idT,:);
 
-            idEnd = length(interpSignal);
+            bIsSignSwitched(idT) = true;
 
-        elseif (idToFix == startIntervalsIDs(end) && length(startIntervalsIDs) > 1) ...
-                && mod(double(ui8howManySwitches), 2) == 0 
-
-            idEnd = switchIdx(end)-1;
-            
+            if bIsNewJump
+                bSignSwitchDetectionMask(idT) = true;
+                ui8howManySwitches = ui8howManySwitches + 1;
+                bIsNewJump = false;
+            end
         else
-            idEnd = switchIdx(idToFix+1)-1 ;
+            bIsNewJump = true;
         end
 
-        interpSignal(idStart:idEnd, :) = -interpSignal(idStart:idEnd, :);
-        bIsSignSwitched(idStart:idEnd) = true;
     end
+
 end
 
-assert(sum(all(ischange(sign(interpSignal)), 2) == true) == 0, ...
+assert(sum(all(ischange(sign(dQuat_fromAtoB)), 2) == true) == 0, ...
     'Something may have gone wrong in fixing the discontinuity!')
 
 % Extract three components of the quaternion
-% i_dDataMatrix = interpSignal(:, 1:3)';
-dDataMatrix = interpSignal';
+dDataMatrix = dQuat_fromAtoB';
 
 
 end
