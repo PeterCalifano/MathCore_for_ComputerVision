@@ -42,7 +42,7 @@ return
 
 %% Attitude quaternion (4-d vector in S^3)
 % Create smooth quaternion trajectory
-dAxis = [0; 0; 1]; % Rotation about z-axis
+dAxis = [0; 0; 1]; %#ok<UNRCH> % Rotation about z-axis
 dAngles = pi/2 * dTimes; % 90 degree rotation over time
 
 dQuatSequence = zeros(length(dTimes), 4);
