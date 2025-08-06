@@ -35,6 +35,8 @@ end
 
 % Sign discontinuity detector and fix (ATTITUDE QUATERNION ONLY)
 bsignSwitchDetectionMask = sign(dQuat_fromAtoB(:, 1:4)); % Use first component as sign check
+% FIXME: switch detection is not robust to cases in which any of the quaternion states jumps
+
 bsignSwitchDetectionMask = any( ischange(bsignSwitchDetectionMask), 2);
 ui8howManySwitches = uint8(sum(bsignSwitchDetectionMask == true));
 interpSignal = dQuat_fromAtoB;
@@ -51,8 +53,7 @@ if ui8howManySwitches > 0
         idStart = switchIdx(idToFix);
 
         if (idToFix == startIntervalsIDs(end) && length(startIntervalsIDs) > 1) ...
-                && mod(double(ui8howManySwitches), 2) ~= 0 || ...
-                length(switchIdx) == 1
+                && mod(double(ui8howManySwitches), 2) ~= 0 || isscalar(switchIdx)
 
             idEnd = length(interpSignal);
 
