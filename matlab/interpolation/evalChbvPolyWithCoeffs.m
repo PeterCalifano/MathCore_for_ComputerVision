@@ -51,6 +51,9 @@ end
 % -------------------------------------------------------------------------------------------------------------
 %% Function code
 
+if coder.target('MATLAB') || coder.target('MEX')
+    assert(dEvalPoint >= dDomainLB && dEvalPoint <= dDomainUB, 'ERROR: invalid evaluation point. Out of interpolation bound.');
+end
 % Check length of used coefficients 
 assert(ui32PtrToLastCoeff == (ui32PolyDeg+1)* ui32OutputSize, ...
     'Number of coefficients does not match the expected size!')
