@@ -2,7 +2,7 @@ function dFiniteDiffJac = ComputeFiniteDiffJacobian(objFcnHandle, dX0diff, dEps,
 arguments
     objFcnHandle  (1,1) {mustBeA(objFcnHandle, ["function_handle", "string", "char"])}
     dX0diff       (:,1) double {isvector, isnumeric} 
-    dEps          (1,1) double {isscalar} = 1e-9
+    dEps          (1,1) double {isscalar} = 1e-5
     ui32OutputID  (1,1) uint32 {isscalar} = 1
     ui32NumOfOuts (1,1) uint32 {isscalar} = 1
 end
