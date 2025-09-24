@@ -1,7 +1,7 @@
 function dDCM = Quat2DCM(dQuatRot, bIS_VSRPplus) %#codegen
 arguments
     dQuatRot     (4,1) double
-    bIS_VSRPplus (1,1) logical = true
+    bIS_VSRPplus (1,1) logical = false
 end
 %% PROTOTYPE
 % dDCM = Quat2DCM(dQuatRot, bIS_VSRPplus) %#codegen
