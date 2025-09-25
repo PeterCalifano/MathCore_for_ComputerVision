@@ -7,6 +7,8 @@ end
 % dQuatRot = DCM2quat(dDCM, bIS_VSRPplus)%#codegen
 % -------------------------------------------------------------------------------------------------------------
 %% DESCRIPTION
+% NOTE: for legacy reasons the function performs computation using bIS_VSRPplus = true convention despite
+% default choice is now bIS_VSRPplus = false.
 % Function converting a DCM to Attitude quaternion. Conversion occurs according to VSRP+ convention
 % (right-handed) Set bIS_VSRPplus = false if SVRP+ convention with scalar first is being used. 
 % The conversion is made numerically optimal. Only supports one conversion per call.
