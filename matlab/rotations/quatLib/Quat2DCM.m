@@ -28,13 +28,13 @@ end
 % -------------------------------------------------------------------------------------------------------------
 %% CHANGELOG
 % 01-09-2023    Pietro Califano     Coded from reference. Validated.
+% 27-04-2024    Pietro Califano     Modified convention of quaternion.
+% 25-09-2025    Pietro Califano     Minor revision (update validations of args)
 % -------------------------------------------------------------------------------------------------------------
 %% DEPENDENCIES
 % [-]
 % -------------------------------------------------------------------------------------------------------------
-%% Future upgrades
-% [-]
-% -------------------------------------------------------------------------------------------------------------
+
 %% Function code
 
 if coder.target('MATLAB') || coder.target('MEX')
@@ -71,5 +71,9 @@ dDCM(3,2) = 2*(qv2*qv3 - qv1*qs);
 dDCM(1,3) = 2*(qv1*qv3 - qv2*qs);
 dDCM(2,3) = 2*(qv2*qv3 + qv1*qs);
 dDCM(3,3) = qs^2 - qv1^2 - qv2^2 + qv3^2;
+
+if coder.target('MATLAB') || coder.target('MEX')
+    assert( all(abs(dDCM) <= 1.0 + eps, 'all'), 'ERROR: invalid DCM. Must have a unitary norm!')
+end
 
 end

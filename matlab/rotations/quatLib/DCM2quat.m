@@ -1,4 +1,8 @@
 function dQuatRot = DCM2quat(dDCM, bIS_VSRPplus) %#codegen
+arguments
+    dDCM         (3,3) double
+    bIS_VSRPplus (1,1) logical = false
+end
 %% PROTOTYPE
 % dQuatRot = DCM2quat(dDCM, bIS_VSRPplus)%#codegen
 % -------------------------------------------------------------------------------------------------------------
@@ -26,17 +30,18 @@ function dQuatRot = DCM2quat(dDCM, bIS_VSRPplus) %#codegen
 %% CHANGELOG
 % 16-12-2023    Pietro Califano     Coded from reference. Validated against
 %                                   MATLAB functions.
-% 27-04-2024    Pietro Califano     Modified convention of quaternion
+% 27-04-2024    Pietro Califano     Modified convention of quaternion.
+% 25-09-2025    Pietro Califano     Minor revision (update validations of args)
 % -------------------------------------------------------------------------------------------------------------
 %% DEPENDENCIES
 % [-]
 % -------------------------------------------------------------------------------------------------------------
-%% Future upgrades
-% [-]
-% -------------------------------------------------------------------------------------------------------------
+
 %% Function code
 % INPUT ASSERT CHECKS
-assert( all(size(dDCM) == [3,3], 'all'), 'ERROR: DCM must be [3x3x1]')
+if coder.target('MATLAB') || coder.target('MEX')
+    assert( all(abs(dDCM) <= 1.0 + eps, 'all'), 'ERROR: invalid DCM. Must have a unitary norm!')
+end
 
 % Quaternion output initialization
 dQuatRot = coder.nullcopy(zeros(4, 1));
@@ -91,6 +96,10 @@ elseif bIS_VSRPplus == true
     %     dQuatRot(2) = qv2;
     %     dQuatRot(3) = qv3;
     %     dQuatRot(4) = qs ;
+end
+
+if coder.target('MATLAB') || coder.target('MEX')
+    assert( all(abs(dQuatRot) <= 1.0 + eps, 'all'), 'ERROR: invalid quaternion array. Must have a unitary norm!')
 end
 
 end
