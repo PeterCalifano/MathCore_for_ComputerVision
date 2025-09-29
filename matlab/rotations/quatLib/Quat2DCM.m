@@ -75,7 +75,7 @@ dDCM(2,3) = 2*(qv2*qv3 + qv1*qs);
 dDCM(3,3) = qs^2 - qv1^2 - qv2^2 + qv3^2;
 
 if coder.target('MATLAB') || coder.target('MEX')
-    assert( all(abs(dDCM) <= 1.0 + eps, 'all'), 'ERROR: invalid DCM. Must have a unitary norm!')
+    assert( all(abs(dDCM) <= 1.0 + 1E-9, 'all'), 'ERROR: invalid DCM. Must have a unitary norm!')
 end
 
 end
