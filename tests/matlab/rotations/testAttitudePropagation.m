@@ -27,7 +27,7 @@ charOutputLengthUnits           = "m";
 
 % Frames
 enumWorldFrame                  = "J2000";
-enumTargetFrame                 = "APOPHIS_FIXED"; %EnumFrameName_RCS1.APOPHIS_FIXED; % "IAU_EARTH"
+enumTargetFrame                 = "APOPHIS_FIXED_HF"; %EnumFrameName_RCS1.APOPHIS_FIXED; % "IAU_EARTH"
 % enumTargetFrame                 = EnumFrameName_RCS1.APOPHIS_FIXED; % "IAU_EARTH"
 
 %%% Trajectory kernel loader input specifications
@@ -98,17 +98,22 @@ dQuat0      = DCM2quat(objDataset.dDCM_TBfromW(:,:,1), false);
 % i32CKHandle = cspice_cklpf( char(charCKKernelName) );
 
 % Documentation: https://naif.jpl.nasa.gov/pub/naif/toolkit_docs/MATLAB/mice/cspice_ckgpav.html
-i32ApophisFrame_ID = -200999422; % int32 ID of the frame 
-i32ApophisFrame_ID = 20099942;
+% i32ApophisFrame_ID = -200999422; % int32 ID of the frame 
+% i32ApophisFrame_ID = 20099942;
+% [dDCM, dRefAngVelSeq, dTimeOuts, bFound] = cspice_ckgpav(int32(i32CKHandle), ...
+%                                                            dAbsIntergTimegrid, ...
+%                                                            1E-6, ...
+%                                                            'APOPHIS_FIXED_HF');
 
-[dDCM, dRefAngVelSeq, dTimeOuts, bFound] = cspice_ckgpav(int32(i32ApophisFrame_ID), ...
-                                                           dAbsIntergTimegrid, ...
-                                                           1E-6, ...
-                                                           'APOPHIS_HF'); % Requires CK kernels!
+% Get 6x6 rotation matrices
+dSxDCM_TFfromW = cspice_sxform('J2000', 'APOPHIS_FIXED_HF', dAbsIntergTimegrid );
+
+% Convert into DCM and angular velocity
+[ dDCM_GT_TFfromW,  dRefAngVelSeq_TFfromW ] = cspice_xf2rav( dSxDCM_TFfromW );
 
 %% Integrate using constant angular velocity
 % Compute perturbed angular velocity at initial time instant
-dPertubAngVel0 = dRefAngVelSeq(:,1) + deg2rad([0.01; 0.01; 0.01]) .* randn(3,1);
+dPertubAngVel0 = dRefAngVelSeq_TFfromW(:,1);
 
 % Integrate attitude kinematics 
 objQuatIntegr = CQuatKinematicsIntegrator();
@@ -121,28 +126,33 @@ dTimestep = 1;
                                                                 dTimestep);
 % Plot visualization
 objDataset.plotDatasetData("dTargetAttitudeSet2", QuatSeq2DCM(dQuatSeqConstant0, false), ...
-                            "bPlotTargetAttitude", true);
+                            "bPlotTargetAttitude", true, ...
+                            "charLblTargetAttitudeSet2", "Integrated", ...
+                            "charTargetAttitudePlotTitle", 'Ang. vel. fixed as initial time');
 return
 
 %% Integrate using angular velocity profile (internally defined spline)
 % Integrate attitude kinematics 
 objQuatIntegr = CQuatKinematicsIntegrator(); %#ok<UNRCH>
-dTimestep = 1;
+dTimestep = 5;
 
+tic
 [dQuatEndConstant0, dTimegridOut, dQuatSeqConstant0] = objQuatIntegr.integrate(dQuat0, ...
-                                                                dRefAngVelSeq, ...
+                                                                dRefAngVelSeq_TFfromW, ...
                                                                 dTimegrid, ...
                                                                 'rkmk4', ...
                                                                 dTimestep, ...
-                                                                1.0, ...
-                                                                dAbsIntergTimegrid);
-
+                                                                5.0, ...
+                                                                dAbsIntergTimegrid, ...
+                                                                "linear");
+toc
 
 % Plot visualization
 objDataset.plotDatasetData("dTargetAttitudeSet2", QuatSeq2DCM(dQuatSeqConstant0, false), ...
-                            "bPlotTargetAttitude", true);
+                            "bPlotTargetAttitude", true, ...
+                            "charLblTargetAttitudeSet2", "Integrated", ...
+                            "charTargetAttitudePlotTitle", 'Ang. vel. spline as reference');
 return
-
 %% test_TorqueFreeMotion_SymmetricTop
 % Torque-free motion for symmetric top (I1=I2 != I3)
 dI1 = 10;
@@ -150,6 +160,8 @@ dI2 = 10;
 dI3 = 50;
 
 dI = diag([dI1, dI2, dI3]);
+dPertubAngVel0 = dRefAngVelSeq_TFfromW(:,1);
+
 objIntegrator = CRigidBodyDynamicsIntegrator(dI, CQuatKinematicsIntegrator());
 
 % Time grid
@@ -206,6 +218,7 @@ for idAtt = 1:ui32Decimation:size(dQuatSeq, 2)
         delete(cellCameraAxes{idB})
     end
 end
-
+return
+%% test_TorqueFreeMotion_integrated
 
 
