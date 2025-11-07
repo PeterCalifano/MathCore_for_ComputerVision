@@ -18,7 +18,7 @@ arguments
     bIS_ATT_QUAT        (1,1) logical
     dSwitchIntervals    (:,:) double = []
     bEnableErrorThrow   (1,1) logical {islogical, isscalar} = true
-    dPercRelErrorTol    (1,1) double {isnumeric, isscalar} = 0.1
+    dPercRelErrorTol    (1,1) double {mustBeNumeric, isscalar} = 0.1
 end
 %% PROTOTYPE
 % [strfitStats, dChbvInterpVector] = checkFitChbvPoly(ui32PolyDeg, ...
@@ -47,7 +47,7 @@ end
 % bIS_ATT_QUAT        (1, 1) logical
 % dSwitchIntervals    (:, :) double = []
 % bEnableErrorThrow   (1,1) logical {islogical, isscalar} = true
-% dPercRelErrorTol    (1,1) double {isnumeric, isscalar} = 0.1
+% dPercRelErrorTol    (1,1) double {mustBeNumeric, isscalar} = 0.1
 % -------------------------------------------------------------------------------------------------------------
 %% OUTPUT
 % strfitStats

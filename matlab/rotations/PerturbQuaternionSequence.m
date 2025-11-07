@@ -77,7 +77,7 @@ end
 %% Auxiliary functions
 function dQuatErr = AnglesToquatErr(dAngles)
 arguments
-    dAngles (3,:) double {isvector, isnumeric}
+    dAngles (3,:) double {isvector, mustBeNumeric}
 end
 
 dTheta = norm(dAngles);
