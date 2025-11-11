@@ -58,14 +58,14 @@ classdef (Abstract) CInterpolator < handle
                                     bEnableErrorThrow, ...
                                     dPercRelErrorTol )
             arguments
-                dInterpDomain       (1,:) double {isnumeric, isvector}
-                ui8PolyDeg          (1,1) uint8 {isnumeric, isscalar} = 15
+                dInterpDomain       (1,:) double {mustBeNumeric, isvector}
+                ui8PolyDeg          (1,1) uint8 {mustBeNumeric, isscalar} = 15
                 enumInterpType      (1,1) {isa(enumInterpType, 'EnumInterpType')} = EnumInterpType.VECTOR
                 bEnableAutoFitCheck (1,1) logical {islogical} = true
-                dDomainBounds       (1,2) double {isnumeric, isvector} = zeros(1,2)
-                i32OutputVectorSize (1,1) int32 {isnumeric, isscalar} = -1 % Expected output size for checks
+                dDomainBounds       (1,2) double {mustBeNumeric, isvector} = zeros(1,2)
+                i32OutputVectorSize (1,1) int32 {mustBeNumeric, isscalar} = -1 % Expected output size for checks
                 bEnableErrorThrow   (1,1) logical {islogical, isscalar} = true
-                dPercRelErrorTol    (1,1) double {isnumeric, isscalar}  = 0.1
+                dPercRelErrorTol    (1,1) double {mustBeNumeric, isscalar}  = 0.1
             end
             
             assert(ui8PolyDeg > 1, "MATLAB:assert:failed", 'Interpolant degree must be > 1.')
@@ -108,7 +108,7 @@ classdef (Abstract) CInterpolator < handle
                 ui8HowManySwitches ] = fixQuatSignDiscontinuity(self, dQuatMatrix_fromAtoB) %#codegen
             arguments
                 self
-                dQuatMatrix_fromAtoB (:, 4) double {isnumeric, ismatrix}
+                dQuatMatrix_fromAtoB (:, 4) double {mustBeNumeric, ismatrix}
             end
 
             % Sign discontinuity detection and fix
@@ -188,10 +188,10 @@ classdef (Abstract) CInterpolator < handle
                                                    dPercRelErrorTol)
             arguments
                 self,
-                dEvalDomain (1,:) double {isnumeric}
-                dDataMatrix (:,:) double {ismatrix, isnumeric}
+                dEvalDomain (1,:) double {mustBeNumeric}
+                dDataMatrix (:,:) double {ismatrix, mustBeNumeric}
                 bEnableErrorThrow   (1,1) logical {islogical, isscalar} = self.bEnableErrorThrow
-                dPercRelErrorTol    (1,1) double {isnumeric, isscalar}  = self.dPercRelErrorTol
+                dPercRelErrorTol    (1,1) double {mustBeNumeric, isscalar}  = self.dPercRelErrorTol
             end
             
             % HARDCODED OPTIONS

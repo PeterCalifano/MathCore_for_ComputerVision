@@ -1,8 +1,8 @@
 function dChbvPolynomial = EvalRecursiveChbv(ui32PolyDeg, dScaledPoint, ui32PolyMaxDeg) %#codegen
 arguments
-    ui32PolyDeg         (1,1) uint32 {isscalar, isnumeric}
-    dScaledPoint        (1,1) double {isscalar, isnumeric}
-    ui32PolyMaxDeg      (1,1) uint32 {isscalar, isnumeric} = ui32PolyDeg
+    ui32PolyDeg         (1,1) uint32 {isscalar, mustBeNumeric}
+    dScaledPoint        (1,1) double {isscalar, mustBeNumeric}
+    ui32PolyMaxDeg      (1,1) uint32 {isscalar, mustBeNumeric} = ui32PolyDeg
 end
 %% PROTOTYPE
 % TODO: update doc
@@ -13,9 +13,9 @@ end
 % interval up to dPolyDeg degree. No coefficient is applied (assumed as ones).
 % -------------------------------------------------------------------------------------------------------------
 %% INPUT
-% ui32PolyDeg         (1,1) uint32 {isscalar, isnumeric}  Degree of the Chebyshev polynomial
-% dScaledPoint        (1,1) double {isscalar, isnumeric}  Chebyshev polynomial evaluation point (scalar only). Must be in [-1,1]
-% ui32PolyMaxDeg      (1,1) uint32 {isscalar, isnumeric} = ui32PolyDeg
+% ui32PolyDeg         (1,1) uint32 {isscalar, mustBeNumeric}  Degree of the Chebyshev polynomial
+% dScaledPoint        (1,1) double {isscalar, mustBeNumeric}  Chebyshev polynomial evaluation point (scalar only). Must be in [-1,1]
+% ui32PolyMaxDeg      (1,1) uint32 {isscalar, mustBeNumeric} = ui32PolyDeg
 % -------------------------------------------------------------------------------------------------------------
 %% OUTPUT
 % dChbvPolynomial: [ui32PolyMaxDeg+1, 1]  Vector of evaluation Chebyshev polynomials (no coefficients) 

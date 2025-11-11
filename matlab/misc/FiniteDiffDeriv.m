@@ -42,7 +42,7 @@ if  abs(max(dtgrid) - min(dtgrid)) > (1e-6)*min(dtgrid)
 end
 
 
-if NtimeInstants <= 3 && isnumeric(samplesTimegrid)
+if NtimeInstants <= 3 && mustBeNumeric(samplesTimegrid)
     % Apply Kernel function directly ("Single window application")
     fDot_array = FDMkernel(samplesPoints, samplesTimegrid, 1);
 
@@ -51,7 +51,7 @@ if NtimeInstants <= 3 && isnumeric(samplesTimegrid)
         fDotDot_array = zeros(length(fDot_array), 1);
     end
 
-elseif NtimeInstants > 3 && isnumeric(samplesTimegrid)
+elseif NtimeInstants > 3 && mustBeNumeric(samplesTimegrid)
 
     % Apply FDM at first time instant
     idt0 = 1;

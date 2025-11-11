@@ -1,7 +1,7 @@
 function [dDataMatrix, bIsSignSwitched, ui8howManySwitches, bSignSwitchDetectionMask] =...
                             fixQuatSignDiscontinuity(dQuat_fromAtoB) %#codegen
 arguments
-    dQuat_fromAtoB (:, 4) double {isvector, isnumeric}
+    dQuat_fromAtoB (:, 4) double {isvector, mustBeNumeric}
 end
 %% PROTOTYPE
 % [dDataMatrix, bIsSignSwitched, ui8howManySwitches, bsignSwitchDetectionMask] =...

@@ -7,14 +7,14 @@ function [dChbvInterpVector] = evalAttQuatChbvPolyWithCoeffs(ui32PolyDeg, ...
     dDomainUB, ...
     ui32PolyMaxDeg) %#codegen
 arguments
-    ui32PolyDeg         (1, 1) uint32   % {isscalar, isnumeric} % Commented for speed-up
-    ui32OutputSize      (1, 1) uint32   % {isscalar, isnumeric}
-    dEvalPoint          (1, 1) double   % {isscalar, isnumeric}
-    dChbvCoeffs         (:, 1) double   % {isnumeric, ismatrix}
-    dSwitchIntervals    (:, 2) double   % {isnumeric, ismatrix}
-    dDomainLB           (1, 1) double   % {isscalar, isnumeric}
-    dDomainUB           (1, 1) double   % {isscalar, isnumeric}
-    ui32PolyMaxDeg      (1, 1) uint32   = ui32PolyDeg % {isscalar, isnumeric} 
+    ui32PolyDeg         (1, 1) uint32   % {isscalar, mustBeNumeric} % Commented for speed-up
+    ui32OutputSize      (1, 1) uint32   % {isscalar, mustBeNumeric}
+    dEvalPoint          (1, 1) double   % {isscalar, mustBeNumeric}
+    dChbvCoeffs         (:, 1) double   % {mustBeNumeric, ismatrix}
+    dSwitchIntervals    (:, 2) double   % {mustBeNumeric, ismatrix}
+    dDomainLB           (1, 1) double   % {isscalar, mustBeNumeric}
+    dDomainUB           (1, 1) double   % {isscalar, mustBeNumeric}
+    ui32PolyMaxDeg      (1, 1) uint32   = ui32PolyDeg % {isscalar, mustBeNumeric} 
 end
 %% PROTOTYPE
 % [dChbvInterpVector] = evalAttQuatChbvPolyWithCoeffs(ui32PolyDeg, ...
@@ -30,14 +30,14 @@ end
 % What the function does
 % -------------------------------------------------------------------------------------------------------------
 %% INPUT
-% ui32PolyDeg         (1, 1) uint32   % {isscalar, isnumeric} % Commented for speed-up
-% ui32OutputSize      (1, 1) uint32   % {isscalar, isnumeric}
-% dEvalPoint          (1, 1) double   % {isscalar, isnumeric}
-% dChbvCoeffs         (:, 1) double   % {isnumeric, ismatrix}
-% dSwitchIntervals    (:, 2) double   % {isnumeric, ismatrix}
-% dDomainLB           (1, 1) double   % {isscalar, isnumeric}
-% dDomainUB           (1, 1) double   % {isscalar, isnumeric}
-% ui32PolyMaxDeg      (1, 1) uint32   = ui32PolyDeg % {isscalar, isnumeric}
+% ui32PolyDeg         (1, 1) uint32   % {isscalar, mustBeNumeric} % Commented for speed-up
+% ui32OutputSize      (1, 1) uint32   % {isscalar, mustBeNumeric}
+% dEvalPoint          (1, 1) double   % {isscalar, mustBeNumeric}
+% dChbvCoeffs         (:, 1) double   % {mustBeNumeric, ismatrix}
+% dSwitchIntervals    (:, 2) double   % {mustBeNumeric, ismatrix}
+% dDomainLB           (1, 1) double   % {isscalar, mustBeNumeric}
+% dDomainUB           (1, 1) double   % {isscalar, mustBeNumeric}
+% ui32PolyMaxDeg      (1, 1) uint32   = ui32PolyDeg % {isscalar, mustBeNumeric}
 % -------------------------------------------------------------------------------------------------------------
 %% OUTPUT
 % dChbvInterpVector

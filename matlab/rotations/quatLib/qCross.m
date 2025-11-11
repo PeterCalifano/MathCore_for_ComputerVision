@@ -1,7 +1,7 @@
 function q1xq2 = qCross(q1, q2, bIS_VSRPplus) %#codegen
 arguments
-    q1 (4,1) {isvector, isnumeric}
-    q2 (4,1) {isvector, isnumeric}
+    q1 (4,1) {isvector, mustBeNumeric}
+    q2 (4,1) {isvector, mustBeNumeric}
     bIS_VSRPplus (1,1) logical {isscalar, islogical}
 end
 %% PROTOTYPE

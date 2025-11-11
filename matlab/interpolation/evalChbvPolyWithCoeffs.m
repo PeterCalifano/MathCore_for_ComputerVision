@@ -7,14 +7,14 @@ function [dChbvInterpVector] = evalChbvPolyWithCoeffs(ui32PolyDeg, ...
                                                       ui32PtrToLastCoeff, ...
                                                       ui32PolyMaxDeg) %#codegen
 arguments
-    ui32PolyDeg         (1,1) uint32    % {isscalar, isnumeric} % Commented for speed-up
-    ui32OutputSize      (1,1) uint32    % {isscalar, isnumeric}
-    dEvalPoint          (1,1) double    % {isscalar, isnumeric}
-    dChbvCoeffs         (:,1) double    % {isnumeric, ismatrix}
-    dDomainLB           (1,1) double    % {isscalar, isnumeric}
-    dDomainUB           (1,1) double    % {isscalar, isnumeric}
-    ui32PtrToLastCoeff  (1,1) uint32    = ui32OutputSize * (ui32PolyDeg + 1)% {isscalar, isnumeric} = length(dChbvCoeffs)
-    ui32PolyMaxDeg      (1,1) uint32    = ui32PolyDeg% {isscalar, isnumeric} = ui32PolyDeg
+    ui32PolyDeg         (1,1) uint32    % {isscalar, mustBeNumeric} % Commented for speed-up
+    ui32OutputSize      (1,1) uint32    % {isscalar, mustBeNumeric}
+    dEvalPoint          (1,1) double    % {isscalar, mustBeNumeric}
+    dChbvCoeffs         (:,1) double    % {mustBeNumeric, ismatrix}
+    dDomainLB           (1,1) double    % {isscalar, mustBeNumeric}
+    dDomainUB           (1,1) double    % {isscalar, mustBeNumeric}
+    ui32PtrToLastCoeff  (1,1) uint32    = ui32OutputSize * (ui32PolyDeg + 1)% {isscalar, mustBeNumeric} = length(dChbvCoeffs)
+    ui32PolyMaxDeg      (1,1) uint32    = ui32PolyDeg% {isscalar, mustBeNumeric} = ui32PolyDeg
 end
 %% PROTOTYPE
 % TODO: update doc
@@ -29,14 +29,14 @@ end
 % What the function does
 % -------------------------------------------------------------------------------------------------------------
 %% INPUT
-% ui32PolyDeg         (1,1) uint32    % {isscalar, isnumeric} % Commented for speed-
-% ui32OutputSize      (1,1) uint32    % {isscalar, isnumeric}
-% dEvalPoint          (1,1) double    % {isscalar, isnumeric}
-% dChbvCoeffs         (:,1) double    % {isnumeric, ismatrix}
-% dDomainLB           (1,1) double    % {isscalar, isnumeric}
-% dDomainUB           (1,1) double    % {isscalar, isnumeric}
-% ui32PtrToLastCoeff  (1,1) uint32    % {isscalar, isnumeric} = length(dChbvCoeffs)
-% ui32PolyMaxDeg      (1,1) uint32    % {isscalar, isnumeric} = ui32PolyDeg
+% ui32PolyDeg         (1,1) uint32    % {isscalar, mustBeNumeric} % Commented for speed-
+% ui32OutputSize      (1,1) uint32    % {isscalar, mustBeNumeric}
+% dEvalPoint          (1,1) double    % {isscalar, mustBeNumeric}
+% dChbvCoeffs         (:,1) double    % {mustBeNumeric, ismatrix}
+% dDomainLB           (1,1) double    % {isscalar, mustBeNumeric}
+% dDomainUB           (1,1) double    % {isscalar, mustBeNumeric}
+% ui32PtrToLastCoeff  (1,1) uint32    % {isscalar, mustBeNumeric} = length(dChbvCoeffs)
+% ui32PolyMaxDeg      (1,1) uint32    % {isscalar, mustBeNumeric} = ui32PolyDeg
 % -------------------------------------------------------------------------------------------------------------
 %% OUTPUT
 % dChbvInterpVector

@@ -1,7 +1,7 @@
 function dxCart = kepl2rv(dxKepl, dGravParam, charUnit) %#codegen
 arguments
-    dxKepl      (6,1) double {isvector, isnumeric}
-    dGravParam  (1,1) double {isscalar, isnumeric, mustBeGreaterThan(dGravParam, 0)}
+    dxKepl      (6,1) double {isvector, mustBeNumeric}
+    dGravParam  (1,1) double {isscalar, mustBeNumeric, mustBeGreaterThan(dGravParam, 0)}
     charUnit    (1,:) string {mustBeMember(charUnit, ["rad", "deg"])} = "rad"
 end
 %% PROTOTYPE
@@ -15,8 +15,8 @@ end
 % -------------------------------------------------------------------------------------------------------------
 %% INPUT
 % arguments
-%     dxKepl      (6,1) double {isvector, isnumeric}
-%     dGravParam  (1,1) double {isscalar, isnumeric, mustBeGreaterThan(dGravParam, 0)}
+%     dxKepl      (6,1) double {isvector, mustBeNumeric}
+%     dGravParam  (1,1) double {isscalar, mustBeNumeric, mustBeGreaterThan(dGravParam, 0)}
 %     charUnit    (1,:) string {mustBeMember(charUnit, ["rad", "deg"])} = "rad"
 % end
 % -------------------------------------------------------------------------------------------------------------

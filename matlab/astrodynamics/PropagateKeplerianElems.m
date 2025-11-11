@@ -3,13 +3,13 @@ function [dxStates] = PropagateKeplerianElems(dxStateKeplInit, ...
                                                 dTimeGrid, ...
                                                 kwargs) %#codegen
 arguments
-    dxStateKeplInit (6,1) {isvector, isnumeric}
+    dxStateKeplInit (6,1) {isvector, mustBeNumeric}
     dGravParam      (1,1) {isscalar, mustBeGreaterThan(dGravParam, 0)}
-    dTimeGrid       (1,:) {isnumeric, isvector}
+    dTimeGrid       (1,:) {mustBeNumeric, isvector}
 end
 arguments
-    kwargs.ui32MaxIter   (1,1) uint32 {isnumeric,isscalar} = 50
-    kwargs.dRadAngleTol  (1,1) double {isnumeric,isscalar} = 1e-9; % [rad]
+    kwargs.ui32MaxIter   (1,1) uint32 {mustBeNumeric,isscalar} = 50
+    kwargs.dRadAngleTol  (1,1) double {mustBeNumeric,isscalar} = 1e-9; % [rad]
     kwargs.bConvert2Cart (1,1) logical {islogical} = false
 end
 %% PROTOTYPE
@@ -26,13 +26,13 @@ end
 % -------------------------------------------------------------------------------------------------------------
 %% INPUT
 % arguments
-%     dxStateKeplInit (6,1) {isvector, isnumeric}
+%     dxStateKeplInit (6,1) {isvector, mustBeNumeric}
 %     dGravParam      (1,1) {isscalar, mustBeGreaterThan(dGravParam, 0)}
-%     dDeltaTime      (1,:) {isnumeric, isvector}
+%     dDeltaTime      (1,:) {mustBeNumeric, isvector}
 % end
 % arguments
-%     kwargs.ui32MaxIter  (1,1) uint32 {isnumeric,isscalar} = 50
-%     kwargs.dRadAngleTol (1,1) double {isnumeric,isscalar} = 1e-9; % [rad]
+%     kwargs.ui32MaxIter  (1,1) uint32 {mustBeNumeric,isscalar} = 50
+%     kwargs.dRadAngleTol (1,1) double {mustBeNumeric,isscalar} = 1e-9; % [rad]
 %     kwargs.bConvert2Cart   (1,1) logical {islogical} = false
 % end
 % -------------------------------------------------------------------------------------------------------------
