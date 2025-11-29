@@ -1,7 +1,7 @@
-function [dDataMatrix, bIsSignSwitched, ui8howManySwitches, bSignSwitchDetectionMask] =...
-                            fixQuatSignDiscontinuity(dQuat_fromAtoB) %#codegen
+function [dDataMatrix, bIsSignSwitched, ui8howManySwitches, ...
+                bSignSwitchDetectionMask] = fixQuatSignDiscontinuity(dQuat_fromAtoB) %#codegen
 arguments
-    dQuat_fromAtoB (:, 4) double {isvector, mustBeNumeric}
+    dQuat_fromAtoB (:, 4) double {mustBeNumeric}
 end
 %% PROTOTYPE
 % [dDataMatrix, bIsSignSwitched, ui8howManySwitches, bsignSwitchDetectionMask] =...
@@ -25,7 +25,7 @@ end
 %                                       being fixed incorrectly in some cases)
 % 18-07-2025    Pietro Califano     Improve robustness of sign switch detection
 % 06-08-2025    Pietro Califano     [HOTFIX] Replace sign switch detection method with more robust one.
-%                                   Previous method wasu failing in case any of smooth zero crossing of 
+%                                   Previous method was failing in case any of smooth zero crossing of 
 %                                   any of the components!
 % -------------------------------------------------------------------------------------------------------------
 %% DEPENDENCIES
@@ -44,10 +44,10 @@ bSignSwitchDetectionMask = false(ui32NumOfTimes, 1);
 bIsSignSwitched          = false(ui32NumOfTimes, 1);
 
 bIsNewJump = true;
+% Loop through signal timestamps to detect jumps
 for idT = 1:ui32NumOfTimes
 
     if idT > 1
-
         % Check sign change of the max component of the quaternion 
         [~, ui32MaxCompIdx] = max( abs( dQuat_fromAtoB(idT,:) ) );
 
@@ -59,6 +59,7 @@ for idT = 1:ui32NumOfTimes
             bIsSignSwitched(idT) = true;
 
             if bIsNewJump
+                % Add entry in detection mask (now mainly for legacy and debug reasons)
                 bSignSwitchDetectionMask(idT) = true;
                 ui8howManySwitches = ui8howManySwitches + 1;
                 bIsNewJump = false;
@@ -66,7 +67,6 @@ for idT = 1:ui32NumOfTimes
         else
             bIsNewJump = true;
         end
-
     end
 
 end
