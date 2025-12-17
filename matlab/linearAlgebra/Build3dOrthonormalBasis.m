@@ -1,4 +1,4 @@
-function [dOrthogAx1, dOrthogAx2, dUnitAx3] = Build3dOrthonomalBasis(dVec3)%#codegen
+function [dOrthogAx1, dOrthogAx2, dUnitAx3] = Build3dOrthonormalBasis(dVec3)%#codegen
 arguments
     dVec3 (3,1) double
 end
