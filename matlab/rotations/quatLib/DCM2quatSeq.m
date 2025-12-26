@@ -1,6 +1,6 @@
 function dQuatRot = DCM2quatSeq(dDCM, bIS_VSRPplus) %#codegen
 arguments (Input)
-    dDCM          (3,3,:) {isnumeric} 
+    dDCM          (3,3,:) {mustBeNumeric} 
     bIS_VSRPplus  (1,1) {islogical, isscalar} = true
 end
 arguments (Output)

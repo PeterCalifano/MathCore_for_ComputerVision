@@ -1,9 +1,9 @@
 function dLnew = cholRank1Update(dL, dU, dBeta, dAlpha) %#codegen
 arguments
-dL     (:, :) double {ismatrix, isnumeric}
-dU     (:, :) double {ismatrix, isnumeric}
-dBeta  (1, 1) double {isnumeric, isscalar} = 1.0
-dAlpha (1, 1) double {isnumeric, isscalar} = 1.0
+dL     (:, :) double {ismatrix, mustBeNumeric}
+dU     (:, :) double {ismatrix, mustBeNumeric}
+dBeta  (1, 1) double {mustBeNumeric, isscalar} = 1.0
+dAlpha (1, 1) double {mustBeNumeric, isscalar} = 1.0
 end
 %% PROTOTYPE
 % dLnew = cholRank1Update(dL, dU, dBeta, dAlpha)

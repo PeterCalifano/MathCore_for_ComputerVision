@@ -5,8 +5,8 @@ function [dTargetMatrix, dOrthogonalQ] = GivensEliminateQR(dTargetMatrix, ...
 arguments
     dTargetMatrix      
     bEliminateInPlace (1,1) logical {islogical, isscalar} = true;
-    ui16ValidRowPtr   (1,1) uint16 {isscalar, isnumeric} = size(dTargetMatrix, 1);
-    ui16ValidColPtr   (1,1) uint16 {isscalar, isnumeric} = size(dTargetMatrix, 2);
+    ui16ValidRowPtr   (1,1) uint16 {isscalar, mustBeNumeric} = size(dTargetMatrix, 1);
+    ui16ValidColPtr   (1,1) uint16 {isscalar, mustBeNumeric} = size(dTargetMatrix, 2);
 end
 %% SIGNATURE
 % [dTargetMatrix, dOrthogonalQ] = GivensEliminateQR(dTargetMatrix, ...

@@ -1,6 +1,6 @@
 function dDCM = UniformlySampleSO3HaarDistr(ui32NumOfSamples)
 arguments
-    ui32NumOfSamples (1,1) uint32 {isscalar, isnumeric} = 1
+    ui32NumOfSamples (1,1) uint32 {isscalar, mustBeNumeric} = 1
 end
 
 % Generate three uniform random numbers

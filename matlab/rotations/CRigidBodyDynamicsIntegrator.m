@@ -162,7 +162,7 @@ classdef CRigidBodyDynamicsIntegrator < handle & matlab.mixin.Copyable
                                                         bDecoupledKinoDynamics) %#codegen
             arguments
                 dTimestamp              (1,1) double {mustBeGreaterThanOrEqual(dTimestamp, 0.0)}
-                dInertiaMatrix          (3,3) double {ismatrix, isnumeric}
+                dInertiaMatrix          (3,3) double {ismatrix, mustBeNumeric}
                 dQuat0                  (4,1) double {mustBeFinite}
                 dOmega0                 (3,1) double {mustBeFinite}
                 dDeltaT                 (1,1) double {mustBePositive}

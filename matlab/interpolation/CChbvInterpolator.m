@@ -32,12 +32,12 @@ classdef CChbvInterpolator < CInterpolator
         %% CONSTRUCTOR
         function self = CChbvInterpolator(dInterpDomain, ui8PolyDeg, enumInterpType, bEnableAutoFitCheck, dDomainBounds, i32OutputVectorSize, bUSE_MEX)
             arguments
-                dInterpDomain (1,:) double {isnumeric, isvector}
-                ui8PolyDeg    (1,1) uint8 {isnumeric, isscalar} = 15
+                dInterpDomain (1,:) double {mustBeNumeric, isvector}
+                ui8PolyDeg    (1,1) uint8 {mustBeNumeric, isscalar} = 15
                 enumInterpType (1,1) {isa(enumInterpType, 'EnumInterpType')} = EnumInterpType.VECTOR
                 bEnableAutoFitCheck (1,1) logical {islogical} = true
-                dDomainBounds (1, 2) double {isnumeric, isvector} = zeros(1,2)
-                i32OutputVectorSize (1,1) int32 {isnumeric, isscalar} = -1 % Expected output size for checks
+                dDomainBounds (1, 2) double {mustBeNumeric, isvector} = zeros(1,2)
+                i32OutputVectorSize (1,1) int32 {mustBeNumeric, isscalar} = -1 % Expected output size for checks
                 bUSE_MEX            (1,1) logical {islogical} = false;
             end
 
@@ -66,9 +66,9 @@ classdef CChbvInterpolator < CInterpolator
         function [self, dInterpVector] = evalInterpolant(self, dEvalPoint, bApplyScaling, i32LimitDegree)
             arguments
                 self 
-                dEvalPoint     (1,1) double {isscalar, isnumeric}
+                dEvalPoint     (1,1) double {isscalar, mustBeNumeric}
                 bApplyScaling  (1,1) logical {islogical} = true
-                i32LimitDegree (1,1) int32 {isscalar, isnumeric} = -1 % No limit
+                i32LimitDegree (1,1) int32 {isscalar, mustBeNumeric} = -1 % No limit
             end
             % TODO: adapt from evalAttQuatChbvPolyWithCoeffs and evalChbvPolyWithCoeffs
             % Sanity checks
@@ -125,9 +125,9 @@ classdef CChbvInterpolator < CInterpolator
         function [self, dPolyTermsValues] = evalPoly(self, dEvalPoint, bApplyScaling, i32LimitDegree)
             arguments
                 self
-                dEvalPoint     (1,1) double {isscalar, isnumeric}
+                dEvalPoint     (1,1) double {isscalar, mustBeNumeric}
                 bApplyScaling  (1,1) logical {islogical}          = false
-                i32LimitDegree (1,1) int32 {isscalar, isnumeric}  = -1 % No limit
+                i32LimitDegree (1,1) int32 {isscalar, mustBeNumeric}  = -1 % No limit
             end
 
             assert(self.ui8PolyDeg >= 2, 'ERROR: selected degree is too low!')
@@ -155,7 +155,7 @@ classdef CChbvInterpolator < CInterpolator
         function [self, dInterpCoeffsMatrixT, strFitStats] = fitDataMatrix(self, dDataMatrix)
             arguments
                 self
-                dDataMatrix (:,:) double {isnumeric, ismatrix} 
+                dDataMatrix (:,:) double {mustBeNumeric, ismatrix} 
             end
             % TODO: adapt from fitChbvPolynomials and fitAttQuatChbvPolynmials
             % Sanity checks
