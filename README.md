@@ -1,2 +1,2 @@
-# MathCore_for_SpaceNav
-Repository collecting codes in C++/Python/MATLAB implementing common mathematical operations for Computer Vision and Spacraft navigation. Derived from private C++/CUDA Template project with pre-configured cmake for small builds. It includes unit testing frameworks (catch2, CppUnitLite), project folder organization, doxygen pre-config and GTwrap for wrapping code to Python and MATLAB. 
+# MathCore_for_ComputerVision
+A math core library providing support for computer graphics and computer vision applications in C++, CUDA, Python and MATLAB 
