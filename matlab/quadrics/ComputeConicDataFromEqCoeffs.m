@@ -54,6 +54,13 @@ strConicData.dEccentricity        = 0.0;
 coder.cstructname(strConicData, 'strConicData');
 
 %% Auxiliary data
+% Extract coefficients
+A = dCoeffsABCDEF(1);
+B = dCoeffsABCDEF(2);
+C = dCoeffsABCDEF(3);
+D = dCoeffsABCDEF(4);
+E = dCoeffsABCDEF(5);
+F = dCoeffsABCDEF(6);
 
 % Compute equation discriminant
 dDiscriminant = B^2 - 4*A*C;
