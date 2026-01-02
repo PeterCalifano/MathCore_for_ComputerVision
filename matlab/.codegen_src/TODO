@@ -1,4 +1,0 @@
-# List of TODOs for codegen script folder
-
-- [ ] Construct automatic pipeline to add the output of each codegenerated function (i.e. a library) to the src folder
-
