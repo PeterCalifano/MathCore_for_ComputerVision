@@ -34,9 +34,9 @@ function(configure_gtwrappers_common)
   if (NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/lib/wrap")
       message(STATUS "Wrap subdirectory not found. Attempting to fetch it from GitHub...")
       execute_process(COMMAND git submodule add "git@github.com:PeterCalifano/wrap.git"
-                      WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+                      WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/lib)
       execute_process(COMMAND git submodule update --init --recursive
-                      WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+                      WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/lib)
 
       if (NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/lib/wrap")
       # Throw an error if the submodule was not fetched successfully
@@ -63,7 +63,12 @@ function(configure_gtwrappers_common)
   message(STATUS "Found wrapper interface files: ${WRAPPER_INTERFACE_FILES}")
 
   if (NOT WRAPPER_INTERFACE_FILES)
-    message(FATAL_ERROR "WRAPPER_INTERFACE_FILES list not defined. Please check the cmake configuration.")
+    set(WRAPPER_INTERFACE_FILES "")
+    message(WARNING "WRAPPER_INTERFACE_FILES list not defined. No wrapper will be built. Please check the cmake configuration.")
+    # Disable further processing
+    set(BUILD_PYTHON_WRAPPER OFF CACHE BOOL "Disable Python wrapper build due to missing interface files." FORCE)
+    set(BUILD_MATLAB_WRAPPER OFF CACHE BOOL "Disable Matlab wrapper build due to missing interface files." FORCE)
+    
   else()
     # Check if list has exactly one element that is empty
     list(LENGTH WRAPPER_INTERFACE_FILES WRAPPER_INTERFACE_FILES_LEN)
