@@ -51,6 +51,12 @@ project( ${project_name}
         LANGUAGES ${languages}
         VERSION ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH})
 
+# Define variable for build as subproject (compare source dir)
+set(BUILD_AS_MAIN_PROJECT ON)
+if(NOT CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
+  set(BUILD_AS_MAIN_PROJECT OFF)
+endif()
+
 # Define variable for namespacing (required to prevent global target clashes!)
 set(LIB_NAMESPACE "${PROJECT_NAME}")
 if (DEFINED LIB_NAMESPACE_OVERRIDE)
@@ -309,10 +315,12 @@ message(STATUS "====================  Library composition  =====================
 add_subdirectory( src )
 
 # Add examples to build
-add_subdirectory( examples )
+if (BUILD_AS_MAIN_PROJECT)
+  add_subdirectory( examples )
+endif()
 
 # Add tests to build
-if (ENABLE_TESTS AND Catch2_FOUND)
+if (ENABLE_TESTS AND Catch2_FOUND AND BUILD_AS_MAIN_PROJECT)
   add_subdirectory( tests )
 endif()
 
