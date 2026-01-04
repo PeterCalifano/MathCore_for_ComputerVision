@@ -19,8 +19,10 @@ add_subdirectory(template_src)
 message(STATUS "Adding module: template_src_kernels")
 add_subdirectory(template_src_kernels)
 
-message(STATUS "Adding module: programs")
-add_subdirectory(bin)
+if (BUILD_AS_MAIN_PROJECT)
+  message(STATUS "Adding module: programs")
+  add_subdirectory(bin)
+endif()
 
 # Exclude EXCLUDED_LIST from the list of src files
 set(EXCLUDED_LIST "")
