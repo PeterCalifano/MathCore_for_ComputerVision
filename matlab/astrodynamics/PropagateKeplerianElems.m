@@ -3,13 +3,13 @@ function [dxStates] = PropagateKeplerianElems(dxStateKeplInit, ...
                                                 dTimeGrid, ...
                                                 kwargs) %#codegen
 arguments
-    dxStateKeplInit (6,1) {isvector, mustBeNumeric}
-    dGravParam      (1,1) {isscalar, mustBeGreaterThan(dGravParam, 0)}
-    dTimeGrid       (1,:) {mustBeNumeric, isvector}
+    dxStateKeplInit (6,1) {mustBeNumeric}
+    dGravParam      (1,1) {mustBeGreaterThan(dGravParam, 0)}
+    dTimeGrid       (1,:) {mustBeNumeric}
 end
 arguments
-    kwargs.ui32MaxIter   (1,1) uint32 {mustBeNumeric,isscalar} = 50
-    kwargs.dRadAngleTol  (1,1) double {mustBeNumeric,isscalar} = 1e-9; % [rad]
+    kwargs.ui32MaxIter   (1,1) uint32 {mustBeNumeric} = 50
+    kwargs.dRadAngleTol  (1,1) double {mustBeNumeric} = 1e-9; % [rad]
     kwargs.bConvert2Cart (1,1) logical {islogical} = false
 end
 %% PROTOTYPE
@@ -26,14 +26,14 @@ end
 % -------------------------------------------------------------------------------------------------------------
 %% INPUT
 % arguments
-%     dxStateKeplInit (6,1) {isvector, mustBeNumeric}
-%     dGravParam      (1,1) {isscalar, mustBeGreaterThan(dGravParam, 0)}
-%     dDeltaTime      (1,:) {mustBeNumeric, isvector}
+%     dxStateKeplInit (6,1) {mustBeNumeric}
+%     dGravParam      (1,1) {mustBeGreaterThan(dGravParam, 0)}
+%     dTimeGrid       (1,:) {mustBeNumeric}
 % end
 % arguments
-%     kwargs.ui32MaxIter  (1,1) uint32 {mustBeNumeric,isscalar} = 50
-%     kwargs.dRadAngleTol (1,1) double {mustBeNumeric,isscalar} = 1e-9; % [rad]
-%     kwargs.bConvert2Cart   (1,1) logical {islogical} = false
+%     kwargs.ui32MaxIter   (1,1) uint32 {mustBeNumeric} = 50
+%     kwargs.dRadAngleTol  (1,1) double {mustBeNumeric} = 1e-9; % [rad]
+%     kwargs.bConvert2Cart (1,1) logical {islogical} = false
 % end
 % -------------------------------------------------------------------------------------------------------------
 %% OUTPUT
@@ -47,9 +47,7 @@ end
 %% DEPENDENCIES
 % [-]
 % -------------------------------------------------------------------------------------------------------------
-%% Future upgrades
-% [-]
-% -------------------------------------------------------------------------------------------------------------
+
 %% Function code
 
 ui32TimegridSize = length(dTimeGrid);
