@@ -97,7 +97,9 @@ include(cmake/HandleOptiX.cmake)
 
 # Add handle of python
 include(cmake/HandlePython.cmake)
-include(cmake/HandleWrapper.cmake)
+if(BUILD_AS_MAIN_PROJECT)
+  include(cmake/HandleWrapper.cmake)
+endif()
 
 # OPTIONS
 option(ENABLE_TESTS              "Build and run tests" ON)
@@ -334,9 +336,11 @@ endif()
 
 ###########################################################################
 ### WRAPPERS CONFIGURATION
-set(LIBNAME_WRAP_TARGET ${project_name})
-handle_gtwrappers() # You may also pass WRAP_INTERFACE_FILES variable to specify interface files, else autofetching is used
-handle_pybind11_wrapper()
+if(BUILD_AS_MAIN_PROJECT)
+  set(LIBNAME_WRAP_TARGET ${project_name})
+  handle_gtwrappers() # You may also pass WRAP_INTERFACE_FILES variable to specify interface files, else autofetching is used
+  handle_pybind11_wrapper()
+endif()
 
 # Determine if any wrapper is enabled
 set(ANY_WRAPPER_ENABLED OFF)
