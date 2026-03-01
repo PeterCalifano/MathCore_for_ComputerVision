@@ -44,6 +44,8 @@ endfunction()
 ### Python and MATLAB wrapper configuration using gtwrap
 # Function for common wrapper configuration
 function(configure_gtwrappers_common)
+  set(_wrap_branch "master")
+
   set(_gtwrap_python_option ${${LIB_NAMESPACE}_BUILD_PYTHON_WRAPPER})
   set(_gtwrap_matlab_option ${${LIB_NAMESPACE}_BUILD_MATLAB_WRAPPER})
   set(_gtwrap_interface_var ${${LIB_NAMESPACE}_WRAPPER_INTERFACE_FILES})
@@ -88,22 +90,44 @@ function(configure_gtwrappers_common)
                       )
 
       if(NOT git_wrap_clone_submodule_result_ EQUAL "0")
-          message(FATAL_ERROR "Failed to add wrap submodule from GitHub. Please make sure git is installed and you have network access.")
+          message(WARNING "Failed to add wrap submodule from GitHub. Wrappers will be disabled and build will continue.")
+          set(${LIB_NAMESPACE}_BUILD_PYTHON_WRAPPER OFF CACHE BOOL "Build Python wrapper" FORCE)
+          set(${LIB_NAMESPACE}_BUILD_MATLAB_WRAPPER OFF CACHE BOOL "Build MATLAB wrapper" FORCE)
+          set(gtwrap_interface_var "" PARENT_SCOPE)
+          return()
       endif()
               
-      # Clone the submodule contents
-      execute_process(COMMAND git checkout cpp_cuda_templ_reference_tag
+      # Ensure wrap uses the latest upstream branch head.
+      execute_process(COMMAND git fetch origin ${_wrap_branch}
                       WORKING_DIRECTORY ${_lib_wrap_dir}
-                      RESULT_VARIABLE git_wrap_checkout_result_
-                      )
+                      RESULT_VARIABLE git_wrap_fetch_result_)
+
+      if(NOT git_wrap_fetch_result_ EQUAL "0")
+          message(WARNING "Failed to fetch wrap ${_wrap_branch} branch from GitHub. Continuing with local checkout.")
+      endif()
+
+      execute_process(COMMAND git checkout ${_wrap_branch}
+                      WORKING_DIRECTORY ${_lib_wrap_dir}
+                      RESULT_VARIABLE git_wrap_checkout_result_)
 
       if(NOT git_wrap_checkout_result_ EQUAL "0")
-          message(FATAL_ERROR "Failed to checkout the correct wrap submodule tag from GitHub. Please make sure git is installed and you have network access.")
+          message(WARNING "Failed to checkout wrap ${_wrap_branch} branch. Continuing with local checkout.")
+      endif()
+
+      execute_process(COMMAND git pull --ff-only origin ${_wrap_branch}
+                      WORKING_DIRECTORY ${_lib_wrap_dir}
+                      RESULT_VARIABLE git_wrap_pull_result_)
+
+      if(NOT git_wrap_pull_result_ EQUAL "0")
+          message(WARNING "Failed to fast-forward wrap ${_wrap_branch} branch from origin. Continuing with local checkout.")
       endif()
 
       if (NOT EXISTS "${_lib_wrap_dir}/.git")
-      # Throw an error if the submodule was not fetched successfully
-          message(FATAL_ERROR "Failed to fetch wrap subdirectory from GitHub. Something may have gone wrong in the configuration. Please report issue.")
+          message(WARNING "wrap checkout not available. Wrappers will be disabled and build will continue.")
+          set(${LIB_NAMESPACE}_BUILD_PYTHON_WRAPPER OFF CACHE BOOL "Build Python wrapper" FORCE)
+          set(${LIB_NAMESPACE}_BUILD_MATLAB_WRAPPER OFF CACHE BOOL "Build MATLAB wrapper" FORCE)
+          set(gtwrap_interface_var "" PARENT_SCOPE)
+          return()
       else()
           message(STATUS "Wrap subdirectory fetched successfully.")
       endif()
@@ -113,10 +137,39 @@ function(configure_gtwrappers_common)
       add_subdirectory(${_lib_wrap_dir})
   else()
       message(STATUS "Wrap subdirectory found. Proceeding to build wrappers...")
+
+      if (EXISTS "${_lib_wrap_dir}/.git")
+          execute_process(COMMAND git fetch origin ${_wrap_branch}
+                          WORKING_DIRECTORY ${_lib_wrap_dir}
+                          RESULT_VARIABLE git_wrap_fetch_result_)
+          if(NOT git_wrap_fetch_result_ EQUAL "0")
+              message(WARNING "Failed to fetch wrap ${_wrap_branch} branch from GitHub. Continuing with local checkout.")
+          endif()
+
+          execute_process(COMMAND git checkout ${_wrap_branch}
+                          WORKING_DIRECTORY ${_lib_wrap_dir}
+                          RESULT_VARIABLE git_wrap_checkout_result_)
+          if(NOT git_wrap_checkout_result_ EQUAL "0")
+              message(WARNING "Failed to checkout wrap ${_wrap_branch} branch. Continuing with local checkout.")
+          endif()
+
+          execute_process(COMMAND git pull --ff-only origin ${_wrap_branch}
+                          WORKING_DIRECTORY ${_lib_wrap_dir}
+                          RESULT_VARIABLE git_wrap_pull_result_)
+          if(NOT git_wrap_pull_result_ EQUAL "0")
+              message(WARNING "Failed to fast-forward wrap ${_wrap_branch} branch from origin. Continuing with local checkout.")
+          endif()
+      endif()
   endif()
 
   # Set the include directory for matlab.h
-  include(${_lib_wrap_dir}/cmake/configure_wrap_paths.cmake)
+  if(NOT COMMAND check_required_components)
+    function(check_required_components)
+    endfunction()
+  endif()
+  if(EXISTS "${_lib_wrap_dir}/cmake/configure_wrap_paths.cmake")
+    include(${_lib_wrap_dir}/cmake/configure_wrap_paths.cmake)
+  endif()
   include_directories(${_lib_wrap_dir}/include)
 
   # DEFINE interface files for wrapper
@@ -135,8 +188,8 @@ function(configure_gtwrappers_common)
   if (NOT DEFINED _gtwrap_interface_var OR NOT _valid_interface_files)
     message(WARNING "No wrapper interface files specified. Wrappers will be disabled.")
     set(gtwrap_interface_var "" PARENT_SCOPE)
-    set(_gtwrap_python_option OFF CACHE BOOL "Disable Python wrapper build due to missing interface files." FORCE )
-    set(_gtwrap_matlab_option OFF CACHE BOOL "Disable Matlab wrapper build due to missing interface files." FORCE )
+    set(${LIB_NAMESPACE}_BUILD_PYTHON_WRAPPER OFF CACHE BOOL "Disable Python wrapper build due to missing interface files." FORCE)
+    set(${LIB_NAMESPACE}_BUILD_MATLAB_WRAPPER OFF CACHE BOOL "Disable Matlab wrapper build due to missing interface files." FORCE)
     return()
   endif()
 
@@ -154,7 +207,8 @@ endfunction()
 function(configure_python_gtwrapper)
   ## Install Python wrap
   message(STATUS "Configuring Python wrap...")
-  message(FATAL_ERROR "Python wrapper handling requires update to work with new version of wrap. Please report issue or contribute fix if you need this feature.")
+  message(WARNING "Python wrapper handling in MathCore_for_SpaceNav is not yet updated for current wrap. Skipping MathCore Python wrapper.")
+  return()
 
   set(_lib_dir "${CMAKE_CURRENT_SOURCE_DIR}/lib")
   set(_lib_wrap_dir "${_lib_dir}/wrap")
