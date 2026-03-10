@@ -37,11 +37,32 @@ install(FILES ${installable_headers}
 # Delete installable_headers
 unset(installable_headers)
 
-add_library(${lib_name} SHARED
-            ${srcLibFiles})
+# Select library type (header only or compiled) based on presence of source files.
+list(LENGTH srcLibFiles src_lib_files_count)
+if (src_lib_files_count EQUAL 0)
+  set(lib_is_header_only TRUE)
+  set(lib_link_scope INTERFACE)
+  set(lib_target_type "INTERFACE")
+  add_library(${lib_name} INTERFACE)
+else()
+  set(lib_is_header_only FALSE)
+  set(lib_link_scope PUBLIC)
+  if (BUILD_SHARED_LIBS)
+    set(lib_target_type "SHARED")
+  else()
+    set(lib_target_type "STATIC")
+  endif()
+
+  add_library(${lib_name} ${lib_target_type}
+              ${srcLibFiles})
+  set_target_properties(${lib_name} PROPERTIES POSITION_INDEPENDENT_CODE ON)
+endif()
+
+message(STATUS "Configured ${lib_name} as a ${lib_target_type} library target")
+set(PROJECT_LIBRARY_KIND "${lib_target_type}" PARENT_SCOPE)
 
 # Link sanitizer target only for in-tree builds to avoid export/install deps.
-if (ENABLE_SANITIZERS AND SANITIZER_TARGET AND TARGET ${SANITIZER_TARGET})
+if (NOT lib_is_header_only AND ENABLE_SANITIZERS AND SANITIZER_TARGET AND TARGET ${SANITIZER_TARGET})
   target_link_libraries(${lib_name} PRIVATE ${SANITIZER_TARGET})
 endif()
 
@@ -49,6 +70,10 @@ endif()
 #target_sources(${lib_name} SHARED ${srcLibFiles})
 
 if ( ENABLE_OPTIX )
+  if (lib_is_header_only)
+    message(FATAL_ERROR "ENABLE_OPTIX requires at least one compilable source file in src/ to embed PTX code into ${lib_name}.")
+  endif()
+
   message("Library .cu kernels files to compile as PTX: ${srcCudaFilesToPTX}")
 
   # Build CUDA to PTX code and const char
@@ -73,27 +98,27 @@ endif()
 
 ### Link targets
 # Project include directories
-target_link_libraries(${lib_name} PUBLIC ${project_name}_include)
+target_link_libraries(${lib_name} ${lib_link_scope} ${project_name}_include ${LIB_COMPILE_TARGET})
 
 # Link interface target for CUDA
 
 if (ENABLE_CUDA)
-  target_link_libraries(${lib_name} PUBLIC ${CUDA_COMPILE_TARGET})
+  target_link_libraries(${lib_name} ${lib_link_scope} ${CUDA_COMPILE_TARGET})
 endif()
 
 # Link OptiX interface target
 if(ENABLE_OPTIX)
-  target_link_libraries(${lib_name} PUBLIC ${OPTIX_COMPILE_TARGET})
+  target_link_libraries(${lib_name} ${lib_link_scope} ${OPTIX_COMPILE_TARGET})
 endif()
 
 if (ENABLE_OPENGL)
-  target_link_libraries(${lib_name} PUBLIC ${OPENGL_COMPILE_TARGET})
+  target_link_libraries(${lib_name} ${lib_link_scope} ${OPENGL_COMPILE_TARGET})
 endif()
 
 #target_include_directories(${lib_name} INTERFACE ${interface_INCLUDE_DIRS} ) 
 # TIP: INTERFACE ensures that the consumer target does not need to include manually the include directories the library target depends on, because they are automagically propagated to the target, even if the target does not need thme. The same happens with PUBLIC, but this time the includes are used by the target library itself.
 
-target_link_libraries(${lib_name} PUBLIC 
+target_link_libraries(${lib_name} ${lib_link_scope}
                       Eigen3::Eigen 
                       #gdt
                       #glfw 
@@ -103,7 +128,8 @@ target_link_libraries(${lib_name} PUBLIC
 # Add target to installable list 
 set(installable_targets ${installable_targets} 
                         ${lib_name} 
-                        ${project_name}_include)
+                        ${project_name}_include
+                        ${LIB_COMPILE_TARGET})
                       
 if (ENABLE_CUDA)
   list(APPEND installable_targets ${CUDA_COMPILE_TARGET})
