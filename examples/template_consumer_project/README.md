@@ -1,3 +1,3 @@
-# Template Consumer Project
+# Consumer Project
 
-This folder is intended as an example/test usage of the template project as target to be consumed. That is, it demonstrates how to integrate and utilize the built library into another cmake project.
+This folder demonstrates how to consume `MathCore_for_SpaceNav` from another CMake project via `find_package`.

@@ -9,7 +9,7 @@ cmake_minimum_required(VERSION 3.15 FATAL_ERROR)
 set(project_name "example_consumer_project")
 option(BUILD_SHARED_LIBS "Build libraries as shared" ON)
 
-# Assumes one has built the template_project with install in the root
+# Assumes one has built and installed MathCore_for_SpaceNav in the root
 set(DEPENDENCY_ROOT_PREFIX "${CMAKE_CURRENT_SOURCE_DIR}/../../")
 
 # Check if it exists 
@@ -21,28 +21,30 @@ if (NOT EXISTS "${DEPENDENCY_ROOT_PREFIX}/install")
 endif()
 
 if(NOT EXISTS "${DEPENDENCY_ROOT_PREFIX}/install/lib/cmake/")
-    message(FATAL_ERROR "Please build and install the template_project first.")
+    message(FATAL_ERROR "Please build and install MathCore_for_SpaceNav first.")
 endif()
 
-project(${project_name} VERSION 0.1.0 LANGUAGES CXX CUDA)
+project(${project_name} VERSION 0.1.0 LANGUAGES CXX)
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
-# Tell cmake where to find the template_project
-set(template_project_DIR "${DEPENDENCY_ROOT_PREFIX}/install/lib/cmake/template_project")
-find_package(template_project REQUIRED)
+# Tell cmake where to find MathCore_for_SpaceNav
+set(MathCore_for_SpaceNav_DIR "${DEPENDENCY_ROOT_PREFIX}/install/lib/cmake/MathCore_for_SpaceNav")
+find_package(MathCore_for_SpaceNav REQUIRED CONFIG)
 
 # Alternatives: 
-# 1. find_package(template_project REQUIRED CONFIG PATHS "${DEPENDENCY_ROOT_PREFIX}/install/lib/cmake/")
-# 2. When configuring the project: cmake -DCMAKE_PREFIX_PATH=/path/to/template_project_install (...)
-# 3. Set CMAKE_PREFIX_PATH in the environment: export CMAKE_PREFIX_PATH=/path/to/template_project_install
+# 1. find_package(MathCore_for_SpaceNav REQUIRED CONFIG PATHS "${DEPENDENCY_ROOT_PREFIX}/install/lib/cmake/")
+# 2. When configuring the project: cmake -DCMAKE_PREFIX_PATH=/path/to/MathCore_for_SpaceNav_install (...)
+# 3. Set CMAKE_PREFIX_PATH in the environment: export CMAKE_PREFIX_PATH=/path/to/MathCore_for_SpaceNav_install
 
 
 # Add executable target
 add_executable(${project_name} example_project.cpp)
 
 # Link target
-target_link_libraries(${project_name} PRIVATE template_project::template_project)
-#target_include_directories(${project_name} PRIVATE ${template_project_INCLUDE_DIRS})
+target_link_libraries(${project_name} PRIVATE MathCore_for_SpaceNav::MathCore_for_SpaceNav)
 
-message(WARNING "Note that template_project_INCLUDE_DIRS directories is empty because by default it is not built: ${template_project_INCLUDE_DIRS}\nInstead, includes directly transitions through the linekd target.")
-get_target_property(INC template_project::template_project INTERFACE_INCLUDE_DIRECTORIES)
+message(WARNING "The public include directories are propagated through the linked target.")
+get_target_property(INC MathCore_for_SpaceNav::MathCore_for_SpaceNav INTERFACE_INCLUDE_DIRECTORIES)
 message(STATUS "Include directories: ${INC}\n")

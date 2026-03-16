@@ -1,4 +1,4 @@
-# Hello C++ fellow, this is the documentation for the cpp_cuda_template_project
+# Hello C++ fellow, this is the documentation for MathCore_for_SpaceNav
 
 ## Installation
 

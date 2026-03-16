@@ -13,11 +13,8 @@ get_filename_component(CURRENT_FOLDER_NAME ${CMAKE_CURRENT_SOURCE_DIR} NAME)
 message(STATUS "Library src files found in ${CURRENT_FOLDER_NAME}: ${srcLibFiles}")
 
 # Add subdirectories with src files
-message(STATUS "Adding module: template_src")
-add_subdirectory(template_src)
-
-message(STATUS "Adding module: template_src_kernels")
-add_subdirectory(template_src_kernels)
+message(STATUS "Adding module: mathcore")
+add_subdirectory(mathcore)
 
 if (BUILD_AS_MAIN_PROJECT)
   message(STATUS "Adding module: programs")
@@ -144,10 +141,6 @@ endif()
 
 message(NOTICE "Added target to installable list: ${installable_targets}")
 #############################################################################
-# Install global_includes.h file
-install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/global_includes.h" 
-        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${project_name}) 
-
 # Install config.h file
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/config.h" 
        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${project_name}) 

@@ -2,10 +2,12 @@
 
 int main()
 {
-    std::cout << "Hello, World! This is an example of project using the template_project as library, integrating it through cmake.\n";
+    std::cout << "Consumer project using MathCore_for_SpaceNav through find_package().\n";
 
-    // Call the placeholder function from the template_src library
-    placeholder::placeholder_fcn();
+    const Eigen::Vector3d axis{1.0, 2.0, 3.0};
+    const auto skew = mathcore::skew_symmetric_matrix(axis);
+
+    std::cout << "Skew matrix:\n" << skew << '\n';
 
     return 0;
 }

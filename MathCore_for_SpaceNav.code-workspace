@@ -11,6 +11,9 @@
 		},
 		{
 			"path": "../dev-tools/UnitTesting4MATLAB"
+		},
+		{
+			"path": "../SLAM-repos/gtsam_spaceNav"
 		}
 	],
 	"settings": {
