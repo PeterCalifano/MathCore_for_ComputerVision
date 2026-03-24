@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "MathCore_for_SpaceNav"
+version = "0.1.0"
+description = "Python bindings for MathCore_for_SpaceNav"
+requires-python = ">=3.8"
+
+[tool.setuptools]
+packages = ["MathCore_for_SpaceNav"]
+include-package-data = true
+
+[tool.setuptools.package-data]
+"MathCore_for_SpaceNav" = ["*.so", "*.pyd", "*.dylib", "*.pyi", "**/*.pyi"]

@@ -5,13 +5,24 @@
 	"build": {
 		"dockerfile": "Dockerfile"
 	},
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"ms-vscode.cpptools",
+				"ms-vscode.cpptools-themes",
+				"twxs.cmake",
+				"donjayamanne.python-extension-pack"
+			]
+		}
+	},
+	"containerEnv": {
+		"DISPLAY": "unix:0",
+		"ROS_LOCALHOST_ONLY": "1",
+		"ROS_DOMAIN_ID": "42"
+	},
 	"features": {
 		"ghcr.io/devcontainers/features/conda:1": {
 			"addCondaForge": true,
-			"version": "latest"
-		},
-		"ghcr.io/devcontainers/features/git-lfs:1": {
-			"autoPull": true,
 			"version": "latest"
 		},
 		"ghcr.io/devcontainers/features/nvidia-cuda:2": {

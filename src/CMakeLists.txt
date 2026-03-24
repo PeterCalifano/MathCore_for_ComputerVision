@@ -58,6 +58,12 @@ endif()
 message(STATUS "Configured ${lib_name} as a ${lib_target_type} library target")
 set(PROJECT_LIBRARY_KIND "${lib_target_type}" PARENT_SCOPE)
 
+if (SPDLOG_ENABLED)
+  target_compile_definitions(${lib_name} ${lib_link_scope} SPDLOG_UTILS_ENABLED=1)
+else()
+  target_compile_definitions(${lib_name} ${lib_link_scope} SPDLOG_UTILS_ENABLED=0)
+endif()
+
 # Link sanitizer target only for in-tree builds to avoid export/install deps.
 if (NOT lib_is_header_only AND ENABLE_SANITIZERS AND SANITIZER_TARGET AND TARGET ${SANITIZER_TARGET})
   target_link_libraries(${lib_name} PRIVATE ${SANITIZER_TARGET})
@@ -97,6 +103,10 @@ endif()
 # Project include directories
 target_link_libraries(${lib_name} ${lib_link_scope} ${project_name}_include ${LIB_COMPILE_TARGET})
 
+if (SPDLOG_ENABLED AND SPDLOG_LINK_TARGET)
+  target_link_libraries(${lib_name} ${lib_link_scope} ${SPDLOG_LINK_TARGET})
+endif()
+
 # Link interface target for CUDA
 
 if (ENABLE_CUDA)
@@ -110,6 +120,17 @@ endif()
 
 if (ENABLE_OPENGL)
   target_link_libraries(${lib_name} ${lib_link_scope} ${OPENGL_COMPILE_TARGET})
+endif()
+
+# Link profiling interface: gperftools always when found, compile flags only with ENABLE_PROFILING.
+# Default is PRIVATE to keep profiling a build-time concern. Set
+# PROFILING_PROPAGATES_TO_CONSUMERS=ON to make profiling usage requirements PUBLIC.
+if (NOT lib_is_header_only AND TARGET ${PROFILING_COMPILE_TARGET})
+  if (PROFILING_PROPAGATES_TO_CONSUMERS)
+    target_link_libraries(${lib_name} PUBLIC ${PROFILING_COMPILE_TARGET})
+  else()
+    target_link_libraries(${lib_name} PRIVATE ${PROFILING_COMPILE_TARGET})
+  endif()
 endif()
 
 #target_include_directories(${lib_name} INTERFACE ${interface_INCLUDE_DIRS} ) 
@@ -127,6 +148,14 @@ set(installable_targets ${installable_targets}
                         ${lib_name} 
                         ${project_name}_include
                         ${LIB_COMPILE_TARGET})
+
+if (SPDLOG_ENABLED AND SPDLOG_LINK_TARGET AND NOT SPDLOG_EXTERNAL_PACKAGE)
+  list(APPEND installable_targets ${SPDLOG_LINK_TARGET})
+endif()
+
+if (TARGET ${PROFILING_COMPILE_TARGET})
+  list(APPEND installable_targets ${PROFILING_COMPILE_TARGET})
+endif()
                       
 if (ENABLE_CUDA)
   list(APPEND installable_targets ${CUDA_COMPILE_TARGET})
@@ -141,6 +170,10 @@ endif()
 
 message(NOTICE "Added target to installable list: ${installable_targets}")
 #############################################################################
+# Install global_includes.h file
+install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/global_includes.h" 
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${project_name}) 
+
 # Install config.h file
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/config.h" 
        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${project_name}) 
