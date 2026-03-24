@@ -2,7 +2,9 @@
 // interfaceName MATLAB/Python wrapper definition file.
 //*************************************************************************
 
-namespace myspace
+namespace mathcore
 {
+
+    
 
 } // ACHTUNG: do not add semi-colon here!
