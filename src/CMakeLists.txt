@@ -74,29 +74,30 @@ endif()
 
 if ( ENABLE_OPTIX )
   if (lib_is_header_only)
-    message(FATAL_ERROR "ENABLE_OPTIX requires at least one compilable source file in src/ to embed PTX code into ${lib_name}.")
-  endif()
+    message(STATUS "Skipping PTX embedding for header-only target ${lib_name}.")
+  else()
 
-  message("Library .cu kernels files to compile as PTX: ${srcCudaFilesToPTX}")
+    message("Library .cu kernels files to compile as PTX: ${srcCudaFilesToPTX}")
 
-  # Build CUDA to PTX code and const char
-  get_target_property(project_interface_INCLUDE_DIRS ${project_name}_include INTERFACE_INCLUDE_DIRECTORIES)
-  if (NOT project_interface_INCLUDE_DIRS)
-    set(project_interface_INCLUDE_DIRS "")
-  endif()
+    # Build CUDA to PTX code and const char
+    get_target_property(project_interface_INCLUDE_DIRS ${project_name}_include INTERFACE_INCLUDE_DIRECTORIES)
+    if (NOT project_interface_INCLUDE_DIRS)
+      set(project_interface_INCLUDE_DIRS "")
+    endif()
 
-  set(PTX_INCLUDE_DIRS ${CUDAToolkit_INCLUDE_DIRS} 
-                      ${OptiX_INCLUDE_DIRS} 
-                      ${project_interface_INCLUDE_DIRS} 
-                      ) # Include directories for PTX compilation
+    set(PTX_INCLUDE_DIRS ${CUDAToolkit_INCLUDE_DIRS} 
+                        ${OptiX_INCLUDE_DIRS} 
+                        ${project_interface_INCLUDE_DIRS} 
+                        ) # Include directories for PTX compilation
 
-  cuda_compile_and_embed(embedded_ptx_code ${sm_version} "${PTX_INCLUDE_DIRS}" ${srcCudaFilesToPTX})
-  # NOTE: Macro above sets up the build of CUDA kernels -> PTX code from which OptiX module is built.
-  # Build occurs before compilation and linking of the library (or executables).
-  # Variable embedded_ptx_code must be extern "C" const char within the cpp source code.
+    cuda_compile_and_embed(embedded_ptx_code ${sm_version} "${PTX_INCLUDE_DIRS}" ${srcCudaFilesToPTX})
+    # NOTE: Macro above sets up the build of CUDA kernels -> PTX code from which OptiX module is built.
+    # Build occurs before compilation and linking of the library (or executables).
+    # Variable embedded_ptx_code must be extern "C" const char within the cpp source code.
     
-  # Add the embedded PTX code to the library
-  target_sources(${lib_name} PRIVATE ${embedded_ptx_code})    
+    # Add the embedded PTX code to the library
+    target_sources(${lib_name} PRIVATE ${embedded_ptx_code})
+  endif()
 endif()
 
 ### Link targets
