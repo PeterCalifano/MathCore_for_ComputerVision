@@ -23,9 +23,6 @@ function dRotDCM = ComputeDCM(ui8AxisIDseq, dRotAngleSeq) %#codegen
 %% DEPENDENCIES
 % [-]
 % -------------------------------------------------------------------------------------------------------------
-%% Future upgrades
-% [-]
-% -------------------------------------------------------------------------------------------------------------
 %% Function code
 % Get number of rotations
 Nr = length(dRotAngleSeq);

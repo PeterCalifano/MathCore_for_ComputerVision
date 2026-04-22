@@ -17,11 +17,7 @@ classdef CChbvInterpolator < CInterpolator
     %% DEPENDENCIES
     % [-]
     % -------------------------------------------------------------------------------------------------------------
-    %% Future upgrades
-    % [-]
-    % -------------------------------------------------------------------------------------------------------------
-
-    properties (SetAccess = protected, GetAccess = public)
+properties (SetAccess = protected, GetAccess = public)
         % No data member specific to this class
         bUSE_MEX;
         bMEX_AVAILABLE = false;

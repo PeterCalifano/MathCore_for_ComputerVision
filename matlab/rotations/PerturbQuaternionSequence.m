@@ -27,10 +27,6 @@ function dQuatSequenceOut = PerturbQuaternionSequence(dQuatSequenceOrig, ...
 %% DEPENDENCIES
 % [-]
 % -------------------------------------------------------------------------------------------------------------
-%% Future upgrades
-% [-]
-% -------------------------------------------------------------------------------------------------------------
-
 arguments (Input)
     dQuatSequenceOrig           (4,:) double
     dTimeStep                   (1,1) double {mustBePositive}

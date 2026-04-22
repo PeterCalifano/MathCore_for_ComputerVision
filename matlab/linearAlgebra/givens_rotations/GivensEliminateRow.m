@@ -28,10 +28,6 @@ end
 %% DEPENDENCIES
 % [-]
 % -------------------------------------------------------------------------------------------------------------
-%% Future upgrades
-% [-]
-% -------------------------------------------------------------------------------------------------------------
-
 assert(ui32AuxRowId ~= ui32TargetSubscript(1)) 
 assert(ui32TargetSubscript(1) > 1, 'ERROR: Givens row-wise rotations cannot be applied to eliminate the 1st row. Target must be below the 1st pivot!')
 ui32NumOfCols = size(dTargetMatrix, 2);

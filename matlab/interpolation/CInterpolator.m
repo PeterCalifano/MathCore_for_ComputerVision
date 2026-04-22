@@ -15,11 +15,7 @@ classdef (Abstract) CInterpolator < handle
     %% DEPENDENCIES
     % [-]
     % -------------------------------------------------------------------------------------------------------------
-    %% Future upgrades
-    % [-]
-    % -------------------------------------------------------------------------------------------------------------
-
-    properties (SetAccess = protected, GetAccess = public)
+properties (SetAccess = protected, GetAccess = public)
 
         % Settings
         enumInterpType;

@@ -28,9 +28,6 @@ function [o_dAllanStdDev, dAllanVarData] = GetAVARatAvgPeriod(i_dTauAveragingTim
 %% DEPENDENCIES
 % [-]
 % -------------------------------------------------------------------------------------------------------------
-%% Future upgrades
-% [-]
-% -------------------------------------------------------------------------------------------------------------
 %% Function code
 [Nsamples, Msignals] = size(i_dGyroSampleData); % Nsamples: number of samples, Msignals: number of signals
 

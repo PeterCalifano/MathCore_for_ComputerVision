@@ -39,9 +39,6 @@ function [shellList, nodesArrayCell, cornersIDs] = GenIcosahedronDiscrSphere(den
 % icomain.exe function compiled from icosahedron.f (using gfortran). By
 % default it is in the same folder as the function.
 % -------------------------------------------------------------------------------------------------------------
-%% Future upgrades
-% [-]
-% -------------------------------------------------------------------------------------------------------------
 %% Function code
 
 % Number of nodes function
