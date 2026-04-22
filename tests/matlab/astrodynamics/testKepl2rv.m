@@ -3,7 +3,7 @@ classdef testKepl2rv < matlab.unittest.TestCase
     % Unit tests for kepl2rv (Keplerian elements to Cartesian state conversion).
     % Validates output dimensions, circular orbit properties, round-trip consistency
     % with rv2kepl, energy and angular momentum conservation, periapsis/apoapsis positions,
-    % degree input option, and random orbit coverage.
+    % degree input option, and elliptic/hyperbolic branch coverage.
     % -------------------------------------------------------------------------------------------------------------
 
     properties (Constant)
@@ -91,6 +91,44 @@ classdef testKepl2rv < matlab.unittest.TestCase
             end
         end
 
+        function testHyperbolicSpecificEnergyAndAngularMomentum(testCase)
+            % Hyperbolic branch: for e>1 and a<0, energy must be positive and
+            % |h| must still satisfy sqrt(mu*a*(1-e^2)).
+            dMu = testCase.dMuEarth;
+            rng(19);
+
+            for idTrial = 1:12
+                dSma  = -(8000 + 30000 * rand());
+                dEcc  = 1.05 + 1.2 * rand();
+                dIncl = pi * rand();
+                dRaan = 2*pi * rand();
+                dArgP = 2*pi * rand();
+
+                % Keep true anomaly inside the physical hyperbolic domain and away from the asymptote.
+                dTAmax = acos(-1 / dEcc) - 1e-3;
+                dTA = (2 * rand() - 1) * dTAmax;
+
+                dxKepl = [dSma; dEcc; dIncl; dRaan; dArgP; dTA];
+                dxCart = kepl2rv(dxKepl, dMu);
+
+                dRadius = norm(dxCart(1:3));
+                dSpeed  = norm(dxCart(4:6));
+                dEnergyActual   = 0.5*dSpeed^2 - dMu/dRadius;
+                dEnergyExpected = -dMu / (2*dSma);
+
+                dHvec = cross(dxCart(1:3), dxCart(4:6));
+                dHnorm = norm(dHvec);
+                dHexpected = sqrt(dMu * dSma * (1 - dEcc^2));
+
+                testCase.verifyGreaterThan(dEnergyActual, 0, ...
+                    sprintf('Hyperbolic energy must be positive (trial %d)', idTrial));
+                testCase.verifyEqual(dEnergyActual, dEnergyExpected, 'RelTol', 1e-9, ...
+                    sprintf('Hyperbolic specific energy mismatch at trial %d', idTrial));
+                testCase.verifyEqual(dHnorm, dHexpected, 'RelTol', 1e-9, ...
+                    sprintf('Hyperbolic angular momentum mismatch at trial %d', idTrial));
+            end
+        end
+
         function testAngularMomentumMagnitude(testCase)
             % Angular momentum |h| = sqrt(mu * a * (1-e^2)) for any point on the orbit
             dMu  = testCase.dMuEarth;
@@ -162,6 +200,15 @@ classdef testKepl2rv < matlab.unittest.TestCase
 
             testCase.verifyEqual(dxCart_deg, dxCart_rad, 'AbsTol', 1e-10, ...
                 'deg and rad inputs must produce identical Cartesian states');
+        end
+
+        function testHyperbolicOrbitRejectsPositiveSemiMajorAxis(testCase)
+            % Guard branch: if e > 1, the implementation requires a < 0.
+            dxKepl = [12000; 1.2; deg2rad(30); deg2rad(40); deg2rad(50); deg2rad(10)];
+
+            testCase.verifyError(@() kepl2rv(dxKepl, testCase.dMuEarth), ...
+                'MATLAB:assertion:failed', ...
+                'Hyperbolic inputs with positive semi-major axis must be rejected');
         end
 
         function testVelocityPerpendicularToPositionForCircularOrbit(testCase)
