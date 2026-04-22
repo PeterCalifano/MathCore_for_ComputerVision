@@ -8,7 +8,7 @@ set(MATLAB_DEFAULT_RELEASE "R2023b")
 #set(CMAKE_CUDA_COMPILER nvcc)
 
 # PROJECT DEFINITION
-set(project_name "MathCore_for_ComputerVision")
+set(project_name "mathcore_for_cv")
 
 # Set install default directory if not specified
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)
