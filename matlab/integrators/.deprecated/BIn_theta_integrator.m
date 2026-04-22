@@ -12,20 +12,6 @@ function [time_vec, x, evalcounter] = BIn_theta_integrator(RHS, tspan, x0, order
 % -------------------------------------------------------------------------------------------------------------
 %% DEPENDENCIES
 % -------------------------------------------------------------------------------------------------------------
-%% Future upgrades
-
-
-
-% Variable tol will be in varargin one day lol
-fsolve_tol = 1e-8;
-
-
-% DEVNOTE
-% 1) Implement checks on exitflag from fsolve
-% 2) Generate tspan if tspan input has [t0 tf] form
-%
-
-
 %% Function code
 % Input checks
  
@@ -56,7 +42,6 @@ switch order
             evalcounter = evalcounter + output.funcCount;
 
             %             evalcounter = evalcounter + 1;
-
 
         end
         

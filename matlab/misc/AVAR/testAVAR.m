@@ -2,7 +2,6 @@ close all
 clear
 clc
 
-
 %% TEST: AVAR function by GPT 
 %% SCRIPT NAME
 % -------------------------------------------------------------------------------------------------------------
@@ -20,16 +19,6 @@ clc
 % -------------------------------------------------------------------------------------------------------------
 %% DEPENDENCIES
 % -------------------------------------------------------------------------------------------------------------
-%% Future upgrades
-
-% Load data
-addpath("Gyro_Samples/");
-
-gyroDataStruct = load('Gyro_Samples/gyro1_1kHz.mat');
-gyroDataFields = fieldnames(gyroDataStruct);
-% gyroDataMat = table2array(gyroDataStruct.(gyroDataFields{1}));
-
-
 %% Plot signals
 timeStamps = gyroDataMat(:, 1); % [ms]
 deltaTimes = gyroDataMat(:, 2); % [ms]
@@ -67,7 +56,6 @@ for id = 1:3
     DefaultPlotOpts();
 
 end
-
 
 %% Perform Allan Variance
 i_strGyrosSetupData.dSamplingFrequency = 1000 * 1./round(mean(deltaTimes(2:end))); % [Hz]

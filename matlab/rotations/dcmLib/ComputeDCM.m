@@ -39,7 +39,6 @@ for idR = (Nr-1):-1:1
     dRotDCM = SingleAxisDCM(ui8AxisIDseq(idR), dRotAngleSeq(idR)) * dRotDCM;
 end
 
-
 %% LOCAL FUNCTIONS
     function dSingleRotDCM = SingleAxisDCM(ui8AxisID, dRotAngle) %#codegen
         %% PROTOTYPE

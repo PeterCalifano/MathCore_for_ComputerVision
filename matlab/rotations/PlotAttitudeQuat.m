@@ -39,10 +39,6 @@ function [fig, o_dDCM_Target2Fixed] = PlotAttitudeQuat(i_dQuatSeq, ...
 % Quat2DCM()
 % DefaultPlotOpts()
 % -------------------------------------------------------------------------------------------------------------
-%% Future upgrades
-% 1) Modify to reduce the number of points (adaptive with sequence size)
-% -------------------------------------------------------------------------------------------------------------
-
 %% Function code
 Nq = size(i_dQuatSeq, 2);
 
@@ -70,7 +66,6 @@ end
 if not(exist('i_bAnimateFlag', 'var'))
     i_bAnimateFlag = false; % Do not animate by default
 end
-
 
 %% Determine execution path
 posNorm = norm(i_dOriginPos(:, 1));
@@ -103,7 +98,6 @@ markerSize = 8;
 scaleView = 1.5;
 posScaleView = 1;
 Nlim = 250;
-
 
 % PLOTTING ROUTINE
 if i_bAnimateFlag == true
@@ -238,7 +232,6 @@ for ii = idSeq % Loop through quaternion sequence
     %     end
 
 end
-
 
 %% LOCAL FUNCTION
     function [vec] = plotRefFrame(i_duTarget, i_dvTarget, i_dwTarget, i_dArrowLength, i_dOriginPos, i_dPauseTime, i_bAnimateFlag, i_dLineWidth)

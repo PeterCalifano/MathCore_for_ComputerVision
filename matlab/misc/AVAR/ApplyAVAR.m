@@ -89,8 +89,4 @@ end
 % Compute corresponding tau values
 o_dTauAveragingTime = o_ui32ClusterSizes * dSamplingPeriod;
 
-
-
-
-
 end

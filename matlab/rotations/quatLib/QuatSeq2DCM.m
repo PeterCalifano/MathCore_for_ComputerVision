@@ -39,5 +39,4 @@ for idV = 1:ui32Nquats
     dDCM(:, :, idV) = Quat2DCM(dQuatRot(:, idV), bIS_VSRPplus);
 end
 
-
 end

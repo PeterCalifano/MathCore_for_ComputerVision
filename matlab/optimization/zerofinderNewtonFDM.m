@@ -25,9 +25,6 @@ function [xSol, feval, info] = zerofinderNewtonFDM(F, x0, tol, maxIter) %#codege
 %% DEPENDENCIES
 % [-]
 % -------------------------------------------------------------------------------------------------------------
-%% Future upgrades
-% 1) Central difference and higher orders
-% -------------------------------------------------------------------------------------------------------------
 %% Function code
 nDims = size(x0, 1);
 

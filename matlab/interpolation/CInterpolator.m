@@ -42,7 +42,6 @@ properties (SetAccess = protected, GetAccess = public)
 
     end
 
-
     methods (Access = public)
         %% CONSTRUCTOR
         function self = CInterpolator(dInterpDomain, ...
@@ -96,7 +95,6 @@ properties (SetAccess = protected, GetAccess = public)
 
         % METHODS
 
-
     end
 
     methods (Access = protected)
@@ -143,7 +141,6 @@ properties (SetAccess = protected, GetAccess = public)
                 end
 
             end
-
 
             % Return fixed data matrix
             dModifiedDataMatrix = dQuatMatrix_fromAtoB';
@@ -218,7 +215,6 @@ properties (SetAccess = protected, GetAccess = public)
             % DEVNOTE TODO: Check if evaluation point (in dEvalDomain fall outside self.dInterpDomain)
             % warning('TODO: add check on dEvalDomain vs self.dInterpDomain')
 
-
             % Evaluation at test points
             ui32testpointsIDs = uint32(sort( randi( length(dEvalDomain), ui32Npoints, 1 ), 'ascend' ));
             
@@ -288,9 +284,7 @@ properties (SetAccess = protected, GetAccess = public)
                 end
             end
 
-
         end
-
 
 end
 

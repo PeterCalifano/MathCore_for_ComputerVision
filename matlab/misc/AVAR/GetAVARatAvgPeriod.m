@@ -81,6 +81,5 @@ end
 % Compute Allan Deviation (square root of Allan Variance)
 o_dAllanStdDev = sqrt(dAllanVarData);
 
-
 end
 

@@ -1,36 +1,44 @@
 function dxCart = kepl2rv(dxKepl, dGravParam, charUnit) %#codegen
-arguments
-    dxKepl      (6,1) double {isvector, mustBeNumeric}
-    dGravParam  (1,1) double {isscalar, mustBeNumeric, mustBeGreaterThan(dGravParam, 0)}
-    charUnit    (1,:) string {mustBeMember(charUnit, ["rad", "deg"])} = "rad"
+arguments (Input)
+    dxKepl      (6,1) double {mustBeFinite}
+    dGravParam  (1,1) double {mustBeFinite, mustBePositive}
+    charUnit    (1,1) string {mustBeMember(charUnit, ["rad", "deg"])} = "rad"
+end
+arguments (Output)
+    dxCart      (6,1) double
 end
 %% PROTOTYPE
-% dxCart = kepl2rv(dxKepl, dGravParam, charUnit) %#codegen
+% dxCart = kepl2rv(dxKepl, dGravParam, charUnit)
 % -------------------------------------------------------------------------------------------------------------
 %% DESCRIPTION
-% General purpose Keplerian propagator in Classical Keplerian elements. It propagates the initial state over
-% the specified time grid of time intervals. The function handles all types of keplerian orbits.
-% 1) Fundamentals of Astrodynamics and Applications - D. Vallado. Section
-%    2.2, Kepler's Problem. Algorithms 3 and 4.
+% Converts Classical Keplerian orbital elements to a Cartesian position-velocity state vector in
+% the inertial (ECI/ECEI) frame. Handles elliptic and hyperbolic orbits. Angles assumed in radians
+% by default; pass charUnit="deg" to use degrees.
+% State order: [SMA; Ecc; Incl; RAAN; ArgPeri; TrueAnomaly]
+% Reference: Fundamentals of Astrodynamics and Applications, D. Vallado, Section 2.2.
 % -------------------------------------------------------------------------------------------------------------
 %% INPUT
-% arguments
-%     dxKepl      (6,1) double {isvector, mustBeNumeric}
-%     dGravParam  (1,1) double {isscalar, mustBeNumeric, mustBeGreaterThan(dGravParam, 0)}
-%     charUnit    (1,:) string {mustBeMember(charUnit, ["rad", "deg"])} = "rad"
-% end
+% dxKepl     (6,1) double   Keplerian state [SMA; Ecc; Incl; RAAN; ArgPeri; TrueAnomaly]
+%                            [km, -, rad, rad, rad, rad] (or deg if charUnit="deg")
+% dGravParam (1,1) double   Gravitational parameter of central body [km^3/s^2]
+% charUnit   (1,1) string   Angle unit of input elements: "rad" (default) or "deg"
 % -------------------------------------------------------------------------------------------------------------
 %% OUTPUT
-% dxCart: [6, 1] State in cartesian coordinates 
+% dxCart     (6,1) double   Cartesian state [x; y; z; vx; vy; vz] in inertial frame [km, km/s]
 % -------------------------------------------------------------------------------------------------------------
 %% CHANGELOG
 % 23-10-2021    Pietro Califano     First version, Orbital Mechanics course @Polimi 2021/2022
 % 12-07-2023    Pietro Califano     Re-worked and validated
 % 01-05-2025    Pietro Califano     Refactoring and improvements
+% 11-04-2026    PC, Claude Code     Fix description (was copy of PropagateKeplerianElems), add arguments Output,
+%                                   fix local function variable naming to match convention.
+% 22-04-2026    PC, Codex 5.4       Replace generic validator functions with shape/semantic validators,
+%                                   normalize angles once, and simplify local rotation helpers to rad-only.
 % -------------------------------------------------------------------------------------------------------------
 %% DEPENDENCIES
 % [-]
 % -------------------------------------------------------------------------------------------------------------
+
 %% Function code
 
 %% Input pre-processing
@@ -55,7 +63,7 @@ end
 %% Conversion [SMA, ECCTA] --> (R, V) in perifocal frame
 % The semi-major axis a, the eccentricity e and the true anomaly defines
 % the shape (so the energy) of the orbit; true anomaly identifies the
-% position at the specific time t of the satellite along the orbit. 
+% position at the specific time t of the satellite along the orbit.
 % From the first two, h can be computed. Then, r and v in perifocal coords.
 % NOTE: the third components is 0 by definition.
 
@@ -63,7 +71,7 @@ end
 dSemiLatusRectum = dSMA*(1 - dEcc^2);
 
 % Norm of the specific orbital ang. mom.
-dOrbitAngMomentNorm = sqrt(dGravParam * dSemiLatusRectum); 
+dOrbitAngMomentNorm = sqrt(dGravParam * dSemiLatusRectum);
 
 dPositionNorm = (dOrbitAngMomentNorm.^2/dGravParam) .* (1/(1 + dEcc.*cos(dTA)));
 
@@ -71,51 +79,36 @@ dPositionPerifocal = dPositionNorm .* [cos(dTA); sin(dTA); 0]; % 3x1
 dVelocityPerifocal = [-(dGravParam./dOrbitAngMomentNorm).*sin(dTA); (dGravParam./dOrbitAngMomentNorm ).*(dEcc + cos(dTA)); 0]; % 3x1
 
 %% DCM Perifocal (e, p, h) --> Cartesian Inertial (I, J, K)
-% Having r and v in perifocal and the Euler angles (313 seq) that defines the orbital 
+% Having r and v in perifocal and the Euler angles (313 seq) that defines the orbital
 % plane wrt Cartesian Inertial, the transformation is done by means of the
 % corresponding DCM (ZXZ). Inclination rotation matches the XY plane.
 
 % Order of rotation: 1st RAAN, 2nd inclination, 3rd omega
-dECEI2perifocal = Rot3(domega, "rad") * Rot1(dIncl, "rad") * Rot3(dRAAN, "rad");
+dECEI2perifocal = Rot3(domega) * Rot1(dIncl) * Rot3(dRAAN);
 
 dxCart = zeros(6, 1);
-dxCart(1:3) = dECEI2perifocal' * dPositionPerifocal; 
+dxCart(1:3) = dECEI2perifocal' * dPositionPerifocal;
 dxCart(4:6) = dECEI2perifocal' * dVelocityPerifocal;
 
 %% LOCAL functions
 %%% Rotation about 1st axis
-    function [Rot_Mat1] = Rot1(dRotAngle, charUnit)
-        if charUnit == "rad"
+    function [dRotMat1] = Rot1(dRotAngle)
+        dSinAngle = sin(dRotAngle);
+        dCosAngle = cos(dRotAngle);
 
-            Rot_Mat1 = [1, 0, 0; ...
-                0, cos(dRotAngle), sin(dRotAngle); ...
-                0, -sin(dRotAngle), cos(dRotAngle)];
-
-        elseif charUnit == "deg"
-
-            Rot_Mat1 = [1, 0, 0; ...
-                0, cosd(dRotAngle), sind(dRotAngle); ...
-                0, -sind(dRotAngle), cosd(dRotAngle)];
-        end
-
+        dRotMat1 = [1, 0, 0; ...
+            0, dCosAngle, dSinAngle; ...
+            0, -dSinAngle, dCosAngle];
     end
 
 %%% Rotation about 3rd axis
-    function [Rot_Mat3] = Rot3(rot_angle, unit)
+    function [dRotMat3] = Rot3(dRotAngle)
+        dSinAngle = sin(dRotAngle);
+        dCosAngle = cos(dRotAngle);
 
-        if unit == "rad"
-
-            Rot_Mat3 = [cos(rot_angle), sin(rot_angle), 0;...
-                -sin(rot_angle), cos(rot_angle), 0;...
-                0, 0, 1];
-
-        elseif unit == "deg"
-
-            Rot_Mat3 = [cosd(rot_angle), sind(rot_angle), 0;...
-                -sind(rot_angle), cosd(rot_angle), 0;...
-                0, 0, 1];
-
-        end
+        dRotMat3 = [dCosAngle, dSinAngle, 0; ...
+            -dSinAngle, dCosAngle, 0; ...
+            0, 0, 1];
     end
 
 end

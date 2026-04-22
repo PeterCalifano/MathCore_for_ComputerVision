@@ -101,6 +101,5 @@ if ifnotstarter == 0
     xState = xState(:, 1:end-1);
 end
 
-
 end
 

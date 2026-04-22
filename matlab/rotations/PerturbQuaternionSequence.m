@@ -89,4 +89,3 @@ dQuatErr = [cos(dHalfTheta); dAxis * sin(dHalfTheta)];
 
 end
 
-

@@ -42,7 +42,6 @@ function Plm_LUT = RecursiveLegendrePolyLUT(gamma, dgamma, lMax) %#codegen
 % -------------------------------------------------------------------------------------------------------------
 %% Function code
 
-
 % Output array is lower diagonal
 % Plm_LUT: [(l+2)x(m+2)]
 

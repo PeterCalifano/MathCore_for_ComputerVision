@@ -23,7 +23,6 @@ properties (SetAccess = protected, GetAccess = public)
         bMEX_AVAILABLE = false;
     end
 
-
     methods (Access = public)
         %% CONSTRUCTOR
         function self = CChbvInterpolator(dInterpDomain, ui8PolyDeg, enumInterpType, bEnableAutoFitCheck, dDomainBounds, i32OutputVectorSize, bUSE_MEX)
@@ -52,7 +51,6 @@ properties (SetAccess = protected, GetAccess = public)
         % SETTERS
 
         % METHODS
-
 
     end
 
@@ -146,7 +144,6 @@ properties (SetAccess = protected, GetAccess = public)
 
         end
 
-
         % Data matrix fitting method
         function [self, dInterpCoeffsMatrixT, strFitStats] = fitDataMatrix(self, dDataMatrix)
             arguments
@@ -211,9 +208,6 @@ properties (SetAccess = protected, GetAccess = public)
         end
 
     end
-
-
-
 
     % Abstract methods
     % methods (Abstract, Access=protected)
