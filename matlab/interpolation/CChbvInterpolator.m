@@ -27,7 +27,6 @@ classdef CChbvInterpolator < CInterpolator
         bMEX_AVAILABLE = false;
     end
 
-
     methods (Access = public)
         %% CONSTRUCTOR
         function self = CChbvInterpolator(dInterpDomain, ui8PolyDeg, enumInterpType, bEnableAutoFitCheck, dDomainBounds, i32OutputVectorSize, bUSE_MEX)
@@ -56,7 +55,6 @@ classdef CChbvInterpolator < CInterpolator
         % SETTERS
 
         % METHODS
-
 
     end
 
@@ -150,7 +148,6 @@ classdef CChbvInterpolator < CInterpolator
 
         end
 
-
         % Data matrix fitting method
         function [self, dInterpCoeffsMatrixT, strFitStats] = fitDataMatrix(self, dDataMatrix)
             arguments
@@ -215,9 +212,6 @@ classdef CChbvInterpolator < CInterpolator
         end
 
     end
-
-
-
 
     % Abstract methods
     % methods (Abstract, Access=protected)

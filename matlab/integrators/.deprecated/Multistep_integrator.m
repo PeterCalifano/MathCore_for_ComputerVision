@@ -13,18 +13,6 @@ function [time_vec, x, evalcounter] = Multistep_integrator(RHS, tspan, x0, class
 % -------------------------------------------------------------------------------------------------------------
 %% DEPENDENCIES
 % -------------------------------------------------------------------------------------------------------------
-%% Future upgrades
-
-
-% Variable tol will be in varargin one day lol
-fsolve_tol = 1e-12;
-order = 3;
-% DEVNOTE
-% 1) Implement checks on exitflag from fsolve
-% 2) Generate tspan if tspan input has [t0 tf] form
-% 3) ACHTUNG: In for loops bring out RHS evaluation and use isrow/iscolumn
-% to adjust the direction (improve code robustness)
-
 %% DEVNOTE: DEBUG STILL ON GOING. VALIDATION TO DO
 
 %% Function code
@@ -44,7 +32,6 @@ else
     err('Specified method name not found or available')
 end
 
-
 % Schemes parameters and counters
 h = tspan(2) - tspan(1);
 starting_idt = 1;
@@ -59,7 +46,6 @@ fk = nan(length(tspan), length(RHS(x0, tspan(1))));
 evalcounter = evalcounter + 1;
 
 xk(1, :) = x0;
-
 
 if class == 0 || class == 1 || class == 2 % AM/AB/ABM
 
@@ -183,7 +169,4 @@ end
 
 time_vec = tspan;
 x = xk;
-
-
-
 

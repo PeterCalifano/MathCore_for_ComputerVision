@@ -24,9 +24,6 @@ function [o_dDayOfYear, o_dUTtimeSecNow, o_dYear] = getCurrentDate(i_dDate0, i_d
 %% DEPENDENCIES
 % [-]
 % -------------------------------------------------------------------------------------------------------------
-%% Future upgrades
-% 1) Increase in accuracy (e.g. accounting for actual year duration)
-% -------------------------------------------------------------------------------------------------------------
 %% Function code
 % Assumed Entries in i_dDate0
 % year    = i_dDate0(1);
@@ -61,6 +58,5 @@ else
     % Get Year of Date0
     o_dYear = i_dDate0(1);
 end
-
 
 end

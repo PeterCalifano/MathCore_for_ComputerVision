@@ -25,9 +25,6 @@ function o_bFeasibleLoS = checkLoS2Point(i_dPos1, i_dPos2, i_dRbody) %#codegen
 %% DEPENDENCIES
 % [-]
 % -------------------------------------------------------------------------------------------------------------
-%% Future upgrades
-% 1) Scaling of inputs to account for equatorial bulge (i.e. flattening)
-% -------------------------------------------------------------------------------------------------------------
 %% Function code
 
 % Define default case
@@ -50,7 +47,5 @@ else
         o_bFeasibleLoS = true;
     end
 end
-
-
 
 end

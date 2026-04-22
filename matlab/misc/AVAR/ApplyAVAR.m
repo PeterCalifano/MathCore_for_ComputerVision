@@ -29,9 +29,6 @@ function [o_dAllanVarData, o_ui32ClusterSizes, o_dTauAveragingTime] = ApplyAVAR(
 %% DEPENDENCIES
 % [-]
 % -------------------------------------------------------------------------------------------------------------
-%% Future upgrades
-% [-]
-% -------------------------------------------------------------------------------------------------------------
 %% Function code
 
 dSamplingFrequency = i_strGyrosSetupData.dSamplingFrequency; % [Hz]
@@ -91,9 +88,5 @@ end
 
 % Compute corresponding tau values
 o_dTauAveragingTime = o_ui32ClusterSizes * dSamplingPeriod;
-
-
-
-
 
 end

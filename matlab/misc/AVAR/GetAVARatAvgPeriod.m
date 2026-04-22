@@ -28,9 +28,6 @@ function [o_dAllanStdDev, dAllanVarData] = GetAVARatAvgPeriod(i_dTauAveragingTim
 %% DEPENDENCIES
 % [-]
 % -------------------------------------------------------------------------------------------------------------
-%% Future upgrades
-% [-]
-% -------------------------------------------------------------------------------------------------------------
 %% Function code
 [Nsamples, Msignals] = size(i_dGyroSampleData); % Nsamples: number of samples, Msignals: number of signals
 
@@ -83,7 +80,6 @@ end
 
 % Compute Allan Deviation (square root of Allan Variance)
 o_dAllanStdDev = sqrt(dAllanVarData);
-
 
 end
 

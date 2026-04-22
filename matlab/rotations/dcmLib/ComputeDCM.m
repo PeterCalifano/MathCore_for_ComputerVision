@@ -23,9 +23,6 @@ function dRotDCM = ComputeDCM(ui8AxisIDseq, dRotAngleSeq) %#codegen
 %% DEPENDENCIES
 % [-]
 % -------------------------------------------------------------------------------------------------------------
-%% Future upgrades
-% [-]
-% -------------------------------------------------------------------------------------------------------------
 %% Function code
 % Get number of rotations
 Nr = length(dRotAngleSeq);
@@ -41,7 +38,6 @@ for idR = (Nr-1):-1:1
     % Concatenate with with next rotation matrix
     dRotDCM = SingleAxisDCM(ui8AxisIDseq(idR), dRotAngleSeq(idR)) * dRotDCM;
 end
-
 
 %% LOCAL FUNCTIONS
     function dSingleRotDCM = SingleAxisDCM(ui8AxisID, dRotAngle) %#codegen

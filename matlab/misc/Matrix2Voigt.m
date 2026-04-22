@@ -26,9 +26,6 @@ function [A_voigt] = Matrix2Voigt(A, mode)
 %% DEPENDENCIES
 % None
 % -------------------------------------------------------------------------------------------------------------
-%% Future upgrades
-
-
 %% Function code
 if ~exist('mode', 'var')
     mode = 0; % default mode
@@ -44,21 +41,5 @@ switch mode
 end
 
   
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 end

@@ -12,9 +12,6 @@ function [x, evalcounter] = IEX4_integrator(RHS, tspan, x0) %#codegen
 % -------------------------------------------------------------------------------------------------------------
 %% DEPENDENCIES
 % -------------------------------------------------------------------------------------------------------------
-%% Future upgrades
-% 1) Implement exitflag check for fsolve stages
-
 %% Function code
 
 IEX4_timer = tic;
@@ -30,7 +27,6 @@ x = nan(length(tspan), length(x0));
 x(1, :) = x0;
 
 evalcounter = 0;
-
 
 for timestep = 1:length(tspan)-1
 

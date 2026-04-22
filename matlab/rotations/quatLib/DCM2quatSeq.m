@@ -34,10 +34,6 @@ end
 %% DEPENDENCIES
 % [-]
 % -------------------------------------------------------------------------------------------------------------
-%% Future upgrades
-% 1) Vectorization for multiple quaternions in one call (improvement using
-% vectorization over third dimension).
-% -------------------------------------------------------------------------------------------------------------
 %% Function code
 % Quaternion output initialization
 Nquats = size(dDCM, 3);
@@ -102,5 +98,4 @@ elseif bIS_VSRPplus == true
 end
 
 end
-
 
