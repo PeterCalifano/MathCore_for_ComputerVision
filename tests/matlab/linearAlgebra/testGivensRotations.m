@@ -55,10 +55,13 @@ assert( all(dRotatedMatrix_nullEntry23_colWise(:, ui32TargetSubscript(2)-1) ~= d
 
 %% testGivensEliminateQR
 % Test function to perform QR decomposition using Givens rotations
-[dR, dQ] = GivensEliminateQR(dTargetMatrix);
+[dR, dQ] = GivensEliminateQR(dTargetMatrix, ...
+                             uint16(size(dTargetMatrix, 1)), ...
+                             uint16(size(dTargetMatrix, 2)), ...
+                             true);
 
-% Assert eliminated matrix is upper triangular
-assert( istriu(dR) );
+% Assert eliminated matrix is upper triangular within roundoff.
+assert( norm(tril(dR, -1), 'fro') < 1e-12 );
 
 % Ensure Q is orthogonal: Q'Q should be identity
 assert( norm(dQ' * dQ - eye(size(dQ, 1)), 'fro') < 1e-10 );
@@ -70,3 +73,21 @@ assert( norm(dQ * dR - dTargetMatrix, 'fro') < 1e-10 );
 [ui32NumOfRows, ui32NumOfCols] = size(dTargetMatrix);
 assert( isequal(size(dQ), [ui32NumOfRows, ui32NumOfRows]) );  % Q should be square (m x m)
 assert( isequal(size(dR), [ui32NumOfRows, ui32NumOfCols]) );  % R should have the same size as the original matrix
+
+%% testGivensEliminateQR_Ronly
+% Test R-only mode used when Q accumulation is not needed
+[dR, ~] = GivensEliminateQR(dTargetMatrix, ...
+                            uint16(size(dTargetMatrix, 1)), ...
+                            uint16(size(dTargetMatrix, 2)), ...
+                            true);
+[dRwithoutQ] = GivensEliminateQR(dTargetMatrix);
+
+assert( norm(tril(dRwithoutQ, -1), 'fro') < 1e-12 );
+assert( norm(dRwithoutQ - dR, 'fro') < 1e-12 );
+
+try
+    [~, ~] = GivensEliminateQR(dTargetMatrix);
+    error('testGivensRotations:ExpectedMissingQFlag', 'Expected missing bComputeQ assertion.')
+catch objException
+    assert(contains(objException.message, 'requesting dOrthogonalQ requires bComputeQ'));
+end
