@@ -28,6 +28,9 @@ end
 %% DEPENDENCIES
 % [-]
 % -------------------------------------------------------------------------------------------------------------
+
+%% Function code
+% Input checks
 ui32NumOfRows = size(dTargetMatrix, 1);
 
 if coder.target("MATLAB") || coder.target("MEX") 
@@ -43,7 +46,7 @@ dVal1 = dTargetMatrix(ui32TargetSubscript(1),           ui32AuxColId);
 dVal2 = dTargetMatrix(ui32TargetSubscript(1), ui32TargetSubscript(2));
 
 % Compute Givens rotation values
-[dCos, dSin] = GivensRotVals([dVal1; dVal2]);
+[dCos, dSin] = ComputeGivensRotValues([dVal1; dVal2]);
 
 % Transform rows
 for ui32IdRow = 1:ui32NumOfRows
@@ -51,9 +54,9 @@ for ui32IdRow = 1:ui32NumOfRows
     dTmp1 = dTargetMatrix(ui32IdRow, ui32AuxColId); 
     dTmp2 = dTargetMatrix(ui32IdRow, ui32TargetSubscript(2));
 
-    % Rotate dTargetMatrix, equivalent to Arot = G^T * A
-    dTargetMatrix(ui32IdRow, ui32AuxColId) = dCos * dTmp1 - dSin * dTmp2;
-    dTargetMatrix(ui32IdRow, ui32TargetSubscript(2)) = dSin * dTmp1 + dCos * dTmp2;
+    % Rotate dTargetMatrix, equivalent to Arot = A * G
+    [dTargetMatrix(ui32IdRow, ui32AuxColId), ...
+     dTargetMatrix(ui32IdRow, ui32TargetSubscript(2))] = ApplyGivensRot(dTmp1, dTmp2, dCos, dSin);
 
 end
 

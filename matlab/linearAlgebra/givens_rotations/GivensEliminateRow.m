@@ -28,6 +28,10 @@ end
 %% DEPENDENCIES
 % [-]
 % -------------------------------------------------------------------------------------------------------------
+
+%% Function code
+
+% Input checks
 assert(ui32AuxRowId ~= ui32TargetSubscript(1)) 
 assert(ui32TargetSubscript(1) > 1, 'ERROR: Givens row-wise rotations cannot be applied to eliminate the 1st row. Target must be below the 1st pivot!')
 ui32NumOfCols = size(dTargetMatrix, 2);
@@ -42,7 +46,7 @@ dVal1 = dTargetMatrix(ui32AuxRowId,           ui32TargetSubscript(2));
 dVal2 = dTargetMatrix(ui32TargetSubscript(1), ui32TargetSubscript(2));
 
 % Compute Givens rotation values
-[dCos, dSin] = GivensRotVals([dVal1; dVal2]);
+[dCos, dSin] = ComputeGivensRotValues([dVal1; dVal2]);
 
 % Transform rows
 for ui32IdCol = 1:ui32NumOfCols
@@ -51,10 +55,9 @@ for ui32IdCol = 1:ui32NumOfCols
     dTmp2 = dTargetMatrix(ui32TargetSubscript(1), ui32IdCol);
 
     % Rotate dTargetMatrix, equivalent to Arot = G^T * A
-    dTargetMatrix(ui32AuxRowId, ui32IdCol) = dCos * dTmp1 - dSin * dTmp2;
-    dTargetMatrix(ui32TargetSubscript(1), ui32IdCol) = dSin * dTmp1 + dCos * dTmp2;
+    [dTargetMatrix(ui32AuxRowId, ui32IdCol), ...
+     dTargetMatrix(ui32TargetSubscript(1), ui32IdCol)] = ApplyGivensRot(dTmp1, dTmp2, dCos, dSin);
 
 end
 
 end
-
