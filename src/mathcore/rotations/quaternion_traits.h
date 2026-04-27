@@ -43,9 +43,11 @@ namespace mathcore
     template <typename Scalar>
     struct SQuatTraits<std::array<Scalar, 4>>
     {
+        // TYPEDEFS
         using scalar_type = Scalar;
         using convention = SScalarFirst;
 
+        // METHODS
         static auto toScalarFirst(const std::array<Scalar, 4> &value) -> Eigen::Matrix<scalar_type, 4, 1>
         {
             Eigen::Matrix<scalar_type, 4, 1> coefficients;
@@ -68,11 +70,15 @@ namespace mathcore
     template <typename Scalar, int Options>
     struct SQuatTraits<Eigen::Quaternion<Scalar, Options>>
     {
+        // TYPEDEFS
         using scalar_type = Scalar;
         using convention = SScalarFirst;
 
+        // METHODS
         static auto toScalarFirst(const Eigen::Quaternion<Scalar, Options> &value) -> Eigen::Matrix<scalar_type, 4, 1>
         {
+            // Eigen stores coefficients internally as [x, y, z, w], but MathCore normalizes all
+            // algorithms to a scalar-first working representation.
             Eigen::Matrix<scalar_type, 4, 1> coefficients;
             coefficients << value.w(), value.x(), value.y(), value.z();
             return coefficients;
@@ -96,9 +102,11 @@ namespace mathcore
     template <typename Scalar, int Options, int MaxRows, int MaxCols>
     struct SQuatTraits<Eigen::Matrix<Scalar, 4, 1, Options, MaxRows, MaxCols>>
     {
+        // TYPEDEFS
         using scalar_type = Scalar;
         using convention = SScalarFirst;
 
+        // METHODS
         static auto toScalarFirst(const Eigen::Matrix<Scalar, 4, 1, Options, MaxRows, MaxCols> &value)
             -> Eigen::Matrix<scalar_type, 4, 1>
         {
@@ -126,8 +134,8 @@ namespace mathcore
     /**
      * @brief Concept for quaternion-like types that can be adapted through `SQuatTraits`
      * @note To satisfy this concept, a type `T` must have a corresponding specialization of `SQuatTraits` that defines a scalar type, a storage convention, and provides methods for converting to and from scalar-first coefficient vectors. This allows MathCore's quaternion utilities and interpolators to operate on a wide range of quaternion representations as long as they are properly adapted through `SQuatTraits`.
-     * 
-     * @tparam T 
+     *
+     * @tparam T
      */
     template <typename T>
     concept TQuatLike = requires(const std::remove_cvref_t<T> &value,
@@ -141,34 +149,36 @@ namespace mathcore
 
     /**
      * @brief Scalar type associated with a quaternion-like type `Quaternion`, as defined by its `SQuatTraits` specialization. This is the type of the individual coefficients of the quaternion.
-     * 
-     * @tparam Quaternion 
+     *
+     * @tparam Quaternion
      */
     template <TQuatLike Quaternion>
     using quaternion_scalar_t = typename SQuatTraits_t<Quaternion>::scalar_type;
 
     /**
      * @brief Storage convention associated with a quaternion-like type `Quaternion`, as defined by its `SQuatTraits` specialization. This indicates whether the quaternion is stored in scalar-first (`[w, x, y, z]`) or scalar-last (`[x, y, z, w]`) order.
-     * 
-     * @tparam Quaternion 
+     *
+     * @tparam Quaternion
      */
     template <TQuatLike Quaternion>
     using quaternion_convention_t = typename SQuatTraits_t<Quaternion>::convention;
 
     /**
      * @brief Type alias for a 4x1 Eigen vector containing the coefficients of a quaternion-like type `Quaternion` in scalar-first order.
-     * 
-     * @tparam Quaternion 
+     *
+     * @tparam Quaternion
      */
     template <TQuatLike Quaternion>
     using quaternion_coefficients_t = Eigen::Matrix<quaternion_scalar_t<Quaternion>, 4, 1>;
 
     /**
      * @brief Extracts the coefficients of a quaternion-like type `Quaternion` in scalar-first order.
-     * 
-     * @tparam Quaternion 
-     * @param value 
-     * @return quaternion_coefficients_t<Quaternion> 
+     * @details All quaternion algorithms in MathCore work on this normalized representation so
+     *          the math stays independent of the storage convention of the user-facing type.
+     *
+     * @tparam Quaternion
+     * @param value
+     * @return quaternion_coefficients_t<Quaternion>
      */
     template <TQuatLike Quaternion>
     [[nodiscard]] inline auto getCoefficientsScalarFirst(const Quaternion &value)
@@ -179,10 +189,12 @@ namespace mathcore
 
     /**
      * @brief Reconstructs a quaternion-like object from scalar-first coefficients.
-     * 
-     * @tparam Quaternion 
-     * @param coefficients 
-     * @return std::remove_cvref_t<Quaternion> 
+     * @details This is the inverse customization point used after internal algorithms finish
+     *          operating in scalar-first form.
+     *
+     * @tparam Quaternion
+     * @param coefficients
+     * @return std::remove_cvref_t<Quaternion>
      */
     template <TQuatLike Quaternion>
     [[nodiscard]] inline auto makeQuatScalarFirst(const quaternion_coefficients_t<Quaternion> &coefficients)
