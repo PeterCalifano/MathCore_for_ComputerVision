@@ -1,7 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/catch_approx.hpp>
 
-#include <mathcore/linalg/skew_symmetric.h>
+#include <mathcore/linalg/vector_operations.h>
 #include <mathcore/random/vector_sampling.h>
 #include <mathcore/rotations/quaternion.h>
 
