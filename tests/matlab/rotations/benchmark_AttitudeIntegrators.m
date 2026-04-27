@@ -1,39 +1,57 @@
 function benchmark_AttitudeIntegrators
-% BENCHMARK_ATTITUDEINTEGRATORS Report representative quaternion and rigid-body runtimes.
+% BENCHMARK_ATTITUDEINTEGRATORS Report representative attitude integration timing and error.
 
 fprintf('Benchmarking attitude integrators\n\n');
 
+ui32Repeats = 3;
+
 cellCaseNames = { ...
-    'quat_constant_rate', ...
-    'quat_tabulated_rate', ...
-    'rigid_body_torque_free', ...
-    'quat_long_horizon'};
+    'quat_constant_rate_rkmk4', ...
+    'quat_tabulated_rate_rkmk4', ...
+    'rigid_body_lie_euler', ...
+    'rigid_body_rk4', ...
+    'rigid_body_rk4_rkmk4', ...
+    'quat_long_horizon_rkmk4'};
 
 cellBenchFcns = { ...
     @benchmarkQuatConstantRate_, ...
     @benchmarkQuatTabulatedRate_, ...
-    @benchmarkRigidBodyTorqueFree_, ...
+    @() benchmarkRigidBodyMethod_('lie_euler'), ...
+    @() benchmarkRigidBodyMethod_('rk4'), ...
+    @() benchmarkRigidBodyMethod_('rk4_rkmk4'), ...
     @benchmarkQuatLongHorizon_};
 
-ui32Repeats = 3;
 dMeanRuntime = zeros(numel(cellBenchFcns), 1);
 
 for ui32Idx = 1:numel(cellBenchFcns)
     cellBenchFcns{ui32Idx}(); % warm-up
     dAccumRuntime = 0.0;
     for ui32Rep = 1:ui32Repeats
-        dAccumRuntime = dAccumRuntime + timeit(cellBenchFcns{ui32Idx});
+        dAccumRuntime = dAccumRuntime + measureRuntime_(cellBenchFcns{ui32Idx});
     end
     dMeanRuntime(ui32Idx) = dAccumRuntime / ui32Repeats;
-    fprintf('%-24s %.6f s\n', cellCaseNames{ui32Idx}, dMeanRuntime(ui32Idx));
+    fprintf('%-28s %.6f s\n', cellCaseNames{ui32Idx}, dMeanRuntime(ui32Idx));
 end
 
-disp(table(string(cellCaseNames(:)), dMeanRuntime, ...
-    'VariableNames', {'case_name', 'runtime_s'}));
+tblRuntime = table(string(cellCaseNames(:)), dMeanRuntime, ...
+    'VariableNames', {'case_name', 'runtime_s'});
+
+fprintf('\nRuntime summary\n');
+disp(tblRuntime);
+
+fprintf('\nRigid-body method error summary\n');
+fprintf('Reference: high-tolerance ode113 full-state integration\n\n');
+disp(compareRigidBodyMethods_);
 
 end
 
-%% Benchmark cases
+function dElapsed = measureRuntime_(fcnBenchmark)
+dTimer = tic;
+fcnBenchmark();
+dElapsed = toc(dTimer);
+end
+
+%% Runtime benchmark cases
 function benchmarkQuatConstantRate_
 objIntegrator = CQuatKinematicsIntegrator();
 objIntegrator.integrate([1;0;0;0], ...
@@ -62,14 +80,14 @@ objIntegrator.integrate([1;0;0;0], ...
                         'linear');
 end
 
-function benchmarkRigidBodyTorqueFree_
-objIntegrator = CRigidBodyDynamicsIntegrator(diag([1.5, 2.0, 3.5]), CQuatKinematicsIntegrator());
+function benchmarkRigidBodyMethod_(enumMethod)
+objIntegrator = CRigidBodyDynamicsIntegrator(rigidBodyInertia_(), CQuatKinematicsIntegrator());
 objIntegrator.integrate(0:2:3600, ...
                         [1;0;0;0], ...
-                        [0.02; 0.01; 0.2], ...
+                        rigidBodyInitialOmega_(), ...
                         zeros(3,1), ...
                         0.05, ...
-                        'rk4_rkmk4', ...
+                        enumMethod, ...
                         true, ...
                         1.0);
 end
@@ -82,4 +100,97 @@ objIntegrator.integrate([1;0;0;0], ...
                         dTimegrid, ...
                         'rkmk4', ...
                         0.05);
+end
+
+%% Accuracy comparison
+function tblAccuracy = compareRigidBodyMethods_
+cellMethods = {'lie_euler'; 'rk4'; 'rk4_rkmk4'};
+dTimegrid = 0:1:120;
+dCandidateStep = 0.2;
+
+dInertia = rigidBodyInertia_();
+objIntegrator = CRigidBodyDynamicsIntegrator(dInertia, CQuatKinematicsIntegrator());
+dQuat0 = [1;0;0;0];
+dOmega0 = rigidBodyInitialOmega_();
+varTorque = zeros(3,1);
+
+[dQuatRefSeq, dOmegaRefSeq] = referenceRigidBodyOde_(dTimegrid, dQuat0, dOmega0, dInertia);
+
+dMaxQuatError = zeros(numel(cellMethods), 1);
+dFinalQuatError = zeros(numel(cellMethods), 1);
+dMaxOmegaError = zeros(numel(cellMethods), 1);
+dFinalOmegaError = zeros(numel(cellMethods), 1);
+
+for ui32Idx = 1:numel(cellMethods)
+    [dQuatSeq, dOmegaSeq] = objIntegrator.integrate(dTimegrid, ...
+                                                    dQuat0, ...
+                                                    dOmega0, ...
+                                                    varTorque, ...
+                                                    dCandidateStep, ...
+                                                    cellMethods{ui32Idx}, ...
+                                                    true, ...
+                                                    1.0);
+
+    dQuatErrors = quaternionSequenceError_(dQuatSeq, dQuatRefSeq);
+    dOmegaErrors = vecnorm(dOmegaSeq - dOmegaRefSeq, 2, 1);
+
+    dMaxQuatError(ui32Idx) = max(dQuatErrors);
+    dFinalQuatError(ui32Idx) = dQuatErrors(end);
+    dMaxOmegaError(ui32Idx) = max(dOmegaErrors);
+    dFinalOmegaError(ui32Idx) = dOmegaErrors(end);
+end
+
+tblAccuracy = table(string(cellMethods), ...
+                    dMaxQuatError, ...
+                    dFinalQuatError, ...
+                    dMaxOmegaError, ...
+                    dFinalOmegaError, ...
+                    'VariableNames', {'method', ...
+                                      'max_quat_error', ...
+                                      'final_quat_error', ...
+                                      'max_omega_error', ...
+                                      'final_omega_error'});
+end
+
+function dQuatErrors = quaternionSequenceError_(dQuatSeq, dQuatRefSeq)
+dQuatErrors = min(vecnorm(dQuatSeq - dQuatRefSeq, 2, 1), ...
+                  vecnorm(dQuatSeq + dQuatRefSeq, 2, 1));
+end
+
+function [dQuatRefSeq, dOmegaRefSeq] = referenceRigidBodyOde_(dTimegrid, dQuat0, dOmega0, dInertia)
+stOptions = odeset('RelTol', 1e-11, 'AbsTol', 1e-13);
+[~, dStateSeq] = ode113(@(dTstamp, dState) rigidBodyOdeRhs_(dTstamp, dState, dInertia), ...
+                        dTimegrid, ...
+                        [dQuat0; dOmega0], ...
+                        stOptions);
+
+dQuatRefSeq = transpose(dStateSeq(:, 1:4));
+dQuatRefSeq = CQuatKinematicsIntegrator.NormalizeSeq(dQuatRefSeq);
+dOmegaRefSeq = transpose(dStateSeq(:, 5:7));
+end
+
+function dStateDot = rigidBodyOdeRhs_(~, dState, dInertia)
+dQuat = dState(1:4);
+dQuat = dQuat / norm(dQuat);
+dOmega = dState(5:7);
+
+dQuatDot = 0.5 * omegaMatrix_(dOmega) * dQuat;
+dOmegaDot = CRigidBodyDynamicsIntegrator.EvalRHS_AngAccel_(dInertia, dOmega, zeros(3,1));
+
+dStateDot = [dQuatDot; dOmegaDot];
+end
+
+function dOmegaMat = omegaMatrix_(dOmega)
+dOmegaMat = [0.0,       -dOmega(1), -dOmega(2), -dOmega(3); ...
+             dOmega(1),  0.0,        dOmega(3), -dOmega(2); ...
+             dOmega(2), -dOmega(3),  0.0,        dOmega(1); ...
+             dOmega(3),  dOmega(2), -dOmega(1),  0.0];
+end
+
+function dInertia = rigidBodyInertia_
+dInertia = diag([1.5, 2.0, 3.5]);
+end
+
+function dOmega0 = rigidBodyInitialOmega_
+dOmega0 = [0.02; 0.01; 0.2];
 end
