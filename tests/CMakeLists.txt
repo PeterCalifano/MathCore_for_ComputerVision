@@ -14,6 +14,10 @@ set(CATCH2_TEST_PROPERTIES "--output-on-failure;--reporter=compact")
 set(EXCLUDED_LIST "test_to_exclude")
 set(TESTS_LIST "")
 
+if(NOT COMMAND add_tests)
+  include("${CMAKE_SOURCE_DIR}/cmake/cmake_utils.cmake")
+endif()
+
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
 # Add subdirectories
