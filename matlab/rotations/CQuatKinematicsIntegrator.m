@@ -38,11 +38,11 @@ classdef CQuatKinematicsIntegrator < handle & matlab.mixin.Copyable
                 dQuat0              (4,1) double {mustBeFinite}
                 varOmegaAngVel      {mustBeA(varOmegaAngVel, ["function_handle", "double"])}
                 dTimegrid           (1,:) double {mustBeFinite, mustBeVector}
-                enumMethod          (1,:) char {mustBeMember(enumMethod, {'lie_euler', 'rkmk4', 'rk4'})}
+                enumMethod          (1,:) char {coder.mustBeConst, mustBeMember(enumMethod, {'lie_euler', 'rkmk4', 'rk4'})}
                 dDeltaT             (1,1) double {mustBeScalarOrEmpty, mustBeGreaterThanOrEqual(dDeltaT, 0.0)} = 0.0;
                 dDefaultMaxDeltaT   (1,1) double {mustBeScalarOrEmpty, mustBeGreaterThanOrEqual(dDefaultMaxDeltaT, 0.0)} = 1.0;
                 dAngVelTimegrid     = [];
-                enumInterpMethod    char {mustBeMember(enumInterpMethod, ["linear", "spline"])} = "linear";
+                enumInterpMethod    char {coder.mustBeConst, mustBeMember(enumInterpMethod, ["linear", "spline"])} = "linear";
             end
 
             bDeduceDeltaT = dDeltaT == 0.0;
@@ -64,12 +64,13 @@ classdef CQuatKinematicsIntegrator < handle & matlab.mixin.Copyable
             dTimegridOut = zeros(1, ui32NumSteps);
 
             % Determine angular velocity mode
-            if isa(varOmegaAngVel, "double")
+            if coder.const(isa(varOmegaAngVel, "double"))
+
                 if size(varOmegaAngVel, 2) == 1
+                    % Constant angular velocity case
                     varOmegaAngVel_ = @(dTstamp) varOmegaAngVel;
                 else
-                    % TODO add interpolation of omega angular velocity to perform step (use splining)
-                    
+                    % Tabulated angular velocity case. Interpolation function is defined based on input timegrid and method.
                     if isempty(dAngVelTimegrid)
                         dAngVelTimegrid = dTimegrid;
                         assert(size(varOmegaAngVel, 2) == ui32NumSteps, 'ERROR: angular velocity profile size must match size of timegrid.');
@@ -78,35 +79,48 @@ classdef CQuatKinematicsIntegrator < handle & matlab.mixin.Copyable
                             'ERROR: angular velocity profile size must match size of input timegrid dAngVelTimegrid.');
                     end
 
-                    % Define angular velocity interpolant
-                    % varOmegaAngVel_ = @(dTstamp) spline(dAngVelTimegrid, varOmegaAngVel, dTstamp);
-                    varOmegaAngVel_ = @(dTstamp) transpose(interp1(dAngVelTimegrid - dAngVelTimegrid(1), varOmegaAngVel', dTstamp, enumInterpMethod));
+                    dAngVelTimegrid = transpose(dAngVelTimegrid(:));
+                    assert(all(diff(dAngVelTimegrid) > 0.0), ...
+                        'ERROR: angular velocity timegrid must be strictly increasing.');
+
+                    if numel(dAngVelTimegrid) == 1
+                        % Single time point provided for tabulated angular velocity: assume constant
+                        dOmegaConst = varOmegaAngVel(:,1);
+                        varOmegaAngVel_ = @(~) dOmegaConst;
+                    else
+                        % Interpolation of angular velocity profile
+                        objOmegaInterp = griddedInterpolant(dAngVelTimegrid(:), ...
+                                                           transpose(varOmegaAngVel), ...
+                                                           char(enumInterpMethod), ...
+                                                           'none');
+                        varOmegaAngVel_ = @(dTstamp) transpose(objOmegaInterp(dTstamp));
+                    end
 
                 end
 
-            elseif isa(varOmegaAngVel, "function_handle")
+            elseif coder.const(isa(varOmegaAngVel, "function_handle"))
                 varOmegaAngVel_ = varOmegaAngVel;
             end
 
             % Select implementation of step
-            switch enumMethod
+            switch coder.const(enumMethod)
                 case 'lie_euler'
+                    % Lie group Euler method: compute delta quaternion from angular velocity at the current time
                     fcnQuatIntegr = @(dQuatOut, dOmegaAngVel, dTstamp, dTmpStep) CQuatKinematicsIntegrator.IntegrStep_LieGroupEuler(dQuatOut, dOmegaAngVel, dTstamp, dTmpStep);
 
                 case 'rkmk4'
+                    % RKMK4 method: compute delta quaternion from a combination of angular velocity samples at the RK4 stages
                     fcnQuatIntegr = @(dQuatOut, dOmegaAngVel, dTstamp, dTmpStep) CQuatKinematicsIntegrator.IntegrStep_RKMK4(dQuatOut, ...
                                                                                                                 dOmegaAngVel, ...
                                                                                                                 dTstamp, ...
                                                                                                                 dTmpStep);
 
                 case 'rk4'
+                    % Classical RK4 method: compute quaternion increment without on-manifold operations
                     fcnQuatIntegr = @(dQuatOut, dOmegaAngVel, dTstamp, dTmpStep) CQuatKinematicsIntegrator.IntegrStep_RK4(dQuatOut, dOmegaAngVel, dTstamp, dTmpStep);
 
             end
 
-            % Define function handle if needed
-            % varOmegaAngVel_
-            
             % Initialize variables
             dCurrentTime = dT0;
             dQuatOutSeq(:,1) = dTmpQuatOut;
@@ -139,7 +153,7 @@ classdef CQuatKinematicsIntegrator < handle & matlab.mixin.Copyable
                     dTmpDeltaStep = min(dDeltaT_, dTimegrid(ui32CurrentIntegrStepIdx) - dInternalLoopTime_);
                     
                     % Integrate over dTmpDeltaStep time
-                    dTmpQuatOut = fcnQuatIntegr(dTmpQuatOut, varOmegaAngVel_, dCurrentTime, dTmpDeltaStep);
+                    dTmpQuatOut = fcnQuatIntegr(dTmpQuatOut, varOmegaAngVel_, dInternalLoopTime_, dTmpDeltaStep);
 
                     % Update time counters
                     dInternalLoopTime_ = dInternalLoopTime_ + dTmpDeltaStep;
@@ -165,21 +179,29 @@ classdef CQuatKinematicsIntegrator < handle & matlab.mixin.Copyable
 
         function dQuatOut = ExpMap(dDeltaAngle)
             arguments
-                dDeltaAngle (3,1) double {mustBeFinite}
+                dDeltaAngle (3,:) double {mustBeFinite}
             end
+            % Function applying delta rotation to a quaternion using ExpMap operation for multiple samples in parallel.
+            
+            dCurrentTimeTheta = vecnorm(dDeltaAngle, 2, 1);
+            ui32NumSamples = size(dDeltaAngle, 2);
+            dQuatOut = zeros(4, ui32NumSamples);
 
-            dCurrentTimeheta = norm(dDeltaAngle);
+            % Handle small angle case with Taylor expansion to avoid numerical issues
+            bSmallAngle = dCurrentTimeTheta < 1e-12;
+            dQuatOut(1, bSmallAngle) = 1.0;
 
-            if dCurrentTimeheta < 1e-12
-                dQuatOut = [1.0; 0.0; 0.0; 0.0];
-                return;
+            % Handle non-small angle case with standard ExpMap formula
+            for ui32Idx = find(~bSmallAngle)
+                
+                % Compute rotation axis and angle
+                dvTmpAxis = dDeltaAngle(:, ui32Idx) / dCurrentTimeTheta(ui32Idx);
+                dTmpHalfTheta = 0.5 * dCurrentTimeTheta(ui32Idx);
+
+                % Apply ExpMap formula for quaternion update
+                dQuatOut(:, ui32Idx) = [cos(dTmpHalfTheta); sin(dTmpHalfTheta) * dvTmpAxis];
+            
             end
-            % Function applying delta rotation to a quaternion using ExpMap operation.
-            % TODO: extend to support sequences of quaternions.
-
-            dvTmpAxis = dDeltaAngle / dCurrentTimeheta;
-            dTmpHalfTheta = 0.5 * dCurrentTimeheta;
-            dQuatOut = [cos(dTmpHalfTheta); sin(dTmpHalfTheta) * dvTmpAxis];
         
         end
 
@@ -187,14 +209,17 @@ classdef CQuatKinematicsIntegrator < handle & matlab.mixin.Copyable
             arguments
                 dDeltaAngle (3,1) double {mustBeFinite}
             end
+            % Function applying delta rotation to a quaternion using ExpMap operation for a single sample.
 
+            % Compute rotation angle 
             dCurrentDeltaTheta = norm(dDeltaAngle);
 
             if dCurrentDeltaTheta < 1e-12
                 dQuatOut = [1.0; 0.0; 0.0; 0.0];
                 return;
             end
-            % Function applying delta rotation to a quaternion using ExpMap operation.
+
+            % Apply ExpMap formula for quaternion update
             dvTmpAxis = dDeltaAngle / dCurrentDeltaTheta;
             dQuatOut = [cos(dCurrentDeltaTheta); sin(dCurrentDeltaTheta) * dvTmpAxis];
         end
@@ -250,32 +275,38 @@ classdef CQuatKinematicsIntegrator < handle & matlab.mixin.Copyable
             %    b = [1/6; 1/3; 1/3; 1/6];
             %    c = [0; 1/2; 1/2; 1];
 
-            % Build Omega matrix
-            fcnOmegaMat = @(dvOmegaAngVel) [0.0,               -dvOmegaAngVel(1), -dvOmegaAngVel(2), -dvOmegaAngVel(3); ...
-                                            dvOmegaAngVel(1), 0.0,                dvOmegaAngVel(3), -dvOmegaAngVel(2); ...
-                                            dvOmegaAngVel(2), -dvOmegaAngVel(3), 0.0,               dvOmegaAngVel(1); ...
-                                            dvOmegaAngVel(3), dvOmegaAngVel(2), -dvOmegaAngVel(1), 0.0];
+            dOmegaStages = [ ...
+                reshape(fcnEvalOmegaAngVel(dTstamp), 3, 1), ...
+                reshape(fcnEvalOmegaAngVel(dTstamp + 0.5 * dDeltaTime), 3, 1), ...
+                reshape(fcnEvalOmegaAngVel(dTstamp + 0.5 * dDeltaTime), 3, 1), ...
+                reshape(fcnEvalOmegaAngVel(dTstamp + dDeltaTime), 3, 1)];
 
-            % Stage 1
-            dTmpOmegaVelK1 = fcnEvalOmegaAngVel(dTstamp);
-            dvTmpK1 = 0.5 * fcnOmegaMat(dTmpOmegaVelK1) * dQuat0; % Eval RHS at t0
+            dQuatOut = CQuatKinematicsIntegrator.IntegrStep_RK4_Samples(dQuat0, dOmegaStages, dDeltaTime);
+        end
+
+        function dQuatOut = IntegrStep_RK4_Samples(dQuat0, dOmegaStages, dDeltaTime)
+            arguments
+                dQuat0      (4,1) double {mustBeFinite}
+                dOmegaStages (3,4) double {mustBeFinite}
+                dDeltaTime  (1,1) double {mustBePositive}
+            end
+
+            fcnOmegaMat = @(dvOmegaAngVel) [0.0,              -dvOmegaAngVel(1), -dvOmegaAngVel(2), -dvOmegaAngVel(3); ...
+                                            dvOmegaAngVel(1),  0.0,               dvOmegaAngVel(3), -dvOmegaAngVel(2); ...
+                                            dvOmegaAngVel(2), -dvOmegaAngVel(3),  0.0,              dvOmegaAngVel(1); ...
+                                            dvOmegaAngVel(3),  dvOmegaAngVel(2), -dvOmegaAngVel(1),  0.0];
+
+            dvTmpK1 = 0.5 * fcnOmegaMat(dOmegaStages(:,1)) * dQuat0;
             dvTmpQuat = dQuat0 + 0.5 * dDeltaTime * dvTmpK1;
-            
-            % Stage 2
-            dTmpOmegaVelK2 = fcnEvalOmegaAngVel(dTstamp + 0.5 * dDeltaTime); 
-            dvTmpK2 = 0.5 * fcnOmegaMat(dTmpOmegaVelK2) * dvTmpQuat; % Eval RHS at t0 + 0.5*dt
+
+            dvTmpK2 = 0.5 * fcnOmegaMat(dOmegaStages(:,2)) * dvTmpQuat;
             dvTmpQuat = dQuat0 + 0.5 * dDeltaTime * dvTmpK2;
-            
-            % Stage 3
-            dTmpOmegaVelK3 = fcnEvalOmegaAngVel(dTstamp + 0.5 * dDeltaTime);
-            dvTmpK3 = 0.5 * fcnOmegaMat(dTmpOmegaVelK3) * dvTmpQuat; % Eval RHS at t0 + 0.5*dt
+
+            dvTmpK3 = 0.5 * fcnOmegaMat(dOmegaStages(:,3)) * dvTmpQuat;
             dvTmpQuat = dQuat0 + dDeltaTime * dvTmpK3;
-            
-            % Stage 4
-            dTmpOmegaVelK4 = fcnEvalOmegaAngVel(dTstamp + dDeltaTime);
-            dvTmpK4 = 0.5 * fcnOmegaMat(dTmpOmegaVelK4) * dvTmpQuat; % Eval RHS at t0 + dt
-            
-            % Update solution and enforce normalization
+
+            dvTmpK4 = 0.5 * fcnOmegaMat(dOmegaStages(:,4)) * dvTmpQuat;
+
             dQuatOut = dQuat0 + dDeltaTime * (dvTmpK1 + 2*dvTmpK2 + 2*dvTmpK3 + dvTmpK4)/6;
             dQuatOut = CQuatKinematicsIntegrator.NormalizeSeq(dQuatOut);
         end
@@ -295,7 +326,7 @@ classdef CQuatKinematicsIntegrator < handle & matlab.mixin.Copyable
             % rotate the initial quaternion.
             
             % Compute delta quaternion over the time interval
-            dTmpDeltaAngle = 0.5 * fcnEvalOmegaAngVel(dTstamp) * dDeltaTime;
+            dTmpDeltaAngle = 0.5 * reshape(fcnEvalOmegaAngVel(dTstamp), 3, 1) * dDeltaTime;
             % Update solution
             dQuatOut = CQuatKinematicsIntegrator.QuatSeqCross( CQuatKinematicsIntegrator.expMap(dTmpDeltaAngle), dQuat0 );
 
@@ -336,22 +367,39 @@ classdef CQuatKinematicsIntegrator < handle & matlab.mixin.Copyable
             %     1    ...
             % ];
 
-            % Compute angular velocity at each timestamp of the stages
-            dInvRightJacPsi = 0.5; % Inverse right jacobian for the quaternion --> 1/2 * I since manifold is linearized at identity rotation
+            % Compute angular velocity samples at the RK4 stages
+            dOmegaStages = [ ...
+                reshape(fcnEvalOmegaAngVel(dTstamp), 3, 1), ...
+                reshape(fcnEvalOmegaAngVel(dTstamp + 0.5 * dDeltaTime), 3, 1), ...
+                reshape(fcnEvalOmegaAngVel(dTstamp + 0.5 * dDeltaTime), 3, 1), ...
+                reshape(fcnEvalOmegaAngVel(dTstamp + dDeltaTime), 3, 1)];
 
-            % Evaluate 4 stages
-            dvTmpK1 = dInvRightJacPsi * fcnEvalOmegaAngVel(dTstamp);
-            dvTmpK2 = dInvRightJacPsi * fcnEvalOmegaAngVel(dTstamp + 0.5 * dDeltaTime);
-            dvTmpK3 = dInvRightJacPsi * fcnEvalOmegaAngVel(dTstamp + 0.5 * dDeltaTime);
-            dvTmpK4 = dInvRightJacPsi * fcnEvalOmegaAngVel(dTstamp + dDeltaTime);
+            assert(all(isfinite(dOmegaStages), 'all'), ...
+                'ERROR: nan detected in integration step. Interpolant of angular velocity may have failed.');
 
-            assert(all(not(isnan(dvTmpK1))) , 'ERROR: nan detected in integration step. Interpolant of angular velocity may have failed.');
+            % Integrate quanternion over the time step using the RK4 combination of angular velocity samples
+            dQuatOut = CQuatKinematicsIntegrator.IntegrStep_RKMK4_Samples(dQuat0, dOmegaStages, dDeltaTime);
 
-            % Compute delta quaternion and update current solution
-            dTmpOmegaDelta  = (dvTmpK1 + 2*dvTmpK2 + 2*dvTmpK3 + dvTmpK4) * (dDeltaTime/6);
-            dQuatOut        = CQuatKinematicsIntegrator.QuatSeqCross(CQuatKinematicsIntegrator.expMap(dTmpOmegaDelta), dQuat0);
+        end
+
+        function dQuatOut = IntegrStep_RKMK4_Samples(dQuat0, dOmegaStages, dDeltaTime)
+            arguments
+                dQuat0      (4,1) double {mustBeFinite}
+                dOmegaStages (3,4) double {mustBeFinite}
+                dDeltaTime  (1,1) double {mustBePositive}
+            end
+
+            % RKMK4 method: compute on-manifold quaternion increment from a combination of angular velocity samples at the RK4 stages.
+            dInvRightJacPsi = 0.5; % Inverse right jacobian for quaternion kinematics linearized at identity
+            dvTmpK1 = dInvRightJacPsi * dOmegaStages(:,1);
+            dvTmpK2 = dInvRightJacPsi * dOmegaStages(:,2);
+            dvTmpK3 = dInvRightJacPsi * dOmegaStages(:,3);
+            dvTmpK4 = dInvRightJacPsi * dOmegaStages(:,4);
+
+            % Compute increment in the Lie algebra and map to the group using ExpMap
+            dTmpOmegaDelta = (dvTmpK1 + 2*dvTmpK2 + 2*dvTmpK3 + dvTmpK4) * (dDeltaTime/6);
+            dQuatOut = CQuatKinematicsIntegrator.QuatSeqCross(CQuatKinematicsIntegrator.expMap(dTmpOmegaDelta), dQuat0);
 
         end
     end
 end
-

@@ -37,6 +37,20 @@ classdef testCQuatKinematicsIntegrator < matlab.unittest.TestCase
             testCase.verifyEqual(q, expected, 'AbsTol', testCase.Tolerance);
         end
 
+        function testExpMapSequence(testCase)
+            dq = [0,  pi, 0;
+                  0,  0,  pi;
+                  0,  0,  0];
+
+            q = CQuatKinematicsIntegrator.ExpMap(dq);
+            expected = [1,  cos(pi/2),  cos(pi/2);
+                        0,  sin(pi/2),  0;
+                        0,  0,          sin(pi/2);
+                        0,  0,          0];
+
+            testCase.verifyEqual(q, expected, 'AbsTol', testCase.Tolerance);
+        end
+
         function testZeroOmegaRK4(testCase)
             % Integrating zero angular velocity yields constant quaternion
             q0   = [1;0;0;0];
