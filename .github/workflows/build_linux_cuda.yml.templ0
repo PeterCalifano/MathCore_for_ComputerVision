@@ -3,15 +3,6 @@ run-name: Build and test C++ library (CUDA)
 
 on:
   workflow_dispatch:
-    inputs:
-      enable_optix:
-        description: "Enable OptiX (requires SDK on runner)"
-        required: true
-        default: "false"
-        type: choice
-        options:
-          - "false"
-          - "true"
 
 concurrency:
   group: cuda-ci-${{ github.ref }}
@@ -30,7 +21,6 @@ jobs:
       BUILD_DIR: build_cuda_ci
       BUILD_TYPE: RelWithDebInfo
       CTEST_OUTPUT_ON_FAILURE: 1
-      ENABLE_OPTIX: ${{ github.event.inputs.enable_optix == 'true' && 'ON' || 'OFF' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -62,7 +52,6 @@ jobs:
             -DCMAKE_BUILD_TYPE="${BUILD_TYPE}" \
             -DENABLE_TESTS=ON \
             -DENABLE_CUDA=ON \
-            -DENABLE_OPTIX="${ENABLE_OPTIX}" \
             -DENABLE_OPENGL=OFF \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
