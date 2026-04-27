@@ -1,61 +1,167 @@
 classdef testPropagateKeplerianElems < matlab.unittest.TestCase
     % Test suite for PropagateKeplerianElems function
+
     methods (Test)
-        function testZeroDtReturnsInitial(testCase)
-            dx0 = [7000; 0.1; 0; 0; 0; 1.0];
-            mu  = 398600.4418;
-            dt  = 0;
-            out = PropagateKeplerianElems(dx0, mu, dt);
-            testCase.verifyEqual(out(:,1), dx0, 'AbsTol', 1e-12);
+        function TestZeroScalarHorizonReturnsInitialState(testCase)
+            dxStateKeplInit = [7000; 0.1; 0; 0; 0; 1.0];
+            dGravParam = 398600.4418;
+            dScalarHorizonSec = 0.0;
+
+            dxStatesOut = PropagateKeplerianElems(dxStateKeplInit, dGravParam, dScalarHorizonSec);
+            testCase.verifySize(dxStatesOut, [6, 1]);
+            testCase.verifyEqual(dxStatesOut(:, 1), dxStateKeplInit, 'AbsTol', 1e-12);
         end
 
-        function testCircularQuarterPeriod(testCase)
-            % Circular orbit: true anomaly = M
-            a   = 7000;
-            dx0 = [a; 0; 0; 0; 0; 0];
-            mu  = 398600.4418;
-            n   = sqrt(mu/(a^3));
-            % Quarter period dt = (1/4)*(2*pi/n)
-            dt  = (pi/2)/n;
-            out = PropagateKeplerianElems(dx0, mu, dt);
-            expectedNu = mod(n*dt, 2*pi);
-            testCase.verifyEqual(out(6,2), expectedNu, 'AbsTol', 1e-9);
+        function TestPositiveScalarHorizonReturnsTwoSamples(testCase)
+            % Circular orbit: true anomaly equals mean anomaly.
+            dSma = 7000;
+            dxStateKeplInit = [dSma; 0; 0; 0; 0; 0];
+            dGravParam = 398600.4418;
+            dMeanMotion = sqrt(dGravParam / (dSma^3));
+            dScalarHorizonSec = (pi/2) / dMeanMotion; % Quarter period
+
+            dxStatesOut = PropagateKeplerianElems(dxStateKeplInit, dGravParam, dScalarHorizonSec);
+            dExpectedTrueAnomaly = mod(dMeanMotion * dScalarHorizonSec, 2*pi);
+
+            testCase.verifySize(dxStatesOut, [6, 2]);
+            testCase.verifyEqual(dxStatesOut(6, 2), dExpectedTrueAnomaly, 'AbsTol', 1e-9);
         end
 
-        function testEllipticalFullPeriod(testCase)
-            % After one full period, anomaly returns to initial
-            a   = 10000;
-            e   = 0.5;
-            dx0 = [a; e; 0; 0; 0; 0];
-            mu  = 398600.4418;
-            T   = 2*pi*sqrt(a^3/mu);
-            out = PropagateKeplerianElems(dx0, mu, T);
-            % True anomaly at end should match initial (mod 2*pi)
-            nuEnd = out(6,end);
-            testCase.verifyEqual(mod(nuEnd,2*pi), 0, 'AbsTol', 1e-6);
+        function TestCircularOnePeriodReturnsInitialState(testCase)
+            dSma = 7000;
+            dEcc = 0.0;
+            dIncl = 0.25;
+            dRaan = 0.30;
+            dArgPer = 0.40;
+            dTrueAnom = 1.10;
+            dxStateKeplInit = [dSma; dEcc; dIncl; dRaan; dArgPer; dTrueAnom];
+
+            dGravParam = 398600.4418;
+            dPeriodSec = 2.0 * pi * sqrt(dSma^3 / dGravParam);
+            dTimeGridSec = [0.0, dPeriodSec];
+
+            dxStatesOut = PropagateKeplerianElems(dxStateKeplInit, dGravParam, dTimeGridSec);
+            dxStateFinal = dxStatesOut(:, end);
+
+            testCase.verifyEqual(dxStateFinal(1:5), dxStateKeplInit(1:5), 'AbsTol', 1e-8);
+
+            dWrappedAnomalyErr = testPropagateKeplerianElems.ComputeWrappedAngleError_(dxStateFinal(6), dxStateKeplInit(6));
+            testCase.verifyLessThan(dWrappedAnomalyErr, 1e-8);
         end
 
-        function testHyperbolicZeroDt(testCase)
-            dx0 = [-10000; 1.5; 0; 0; 0; 0.5];
-            mu  = 398600.4418;
-            dt  = 0;
-            out = PropagateKeplerianElems(dx0, mu, dt);
-            testCase.verifyEqual(out(:,1), dx0, 'AbsTol', 1e-12);
+        function TestCircularOnePeriodReturnsInitialCartesianState(testCase)
+            dSma = 7000;
+            dEcc = 0.0;
+            dIncl = 0.25;
+            dRaan = 0.30;
+            dArgPer = 0.40;
+            dTrueAnom = 1.10;
+            dxStateKeplInit = [dSma; dEcc; dIncl; dRaan; dArgPer; dTrueAnom];
+
+            dGravParam = 398600.4418;
+            dPeriodSec = 2.0 * pi * sqrt(dSma^3 / dGravParam);
+            dTimeGridSec = [0.0, dPeriodSec];
+
+            dxStateCartInit = kepl2rv(dxStateKeplInit, dGravParam, "rad");
+            dxStatesCartOut = PropagateKeplerianElems(dxStateKeplInit, ...
+                                                      dGravParam, ...
+                                                      dTimeGridSec, ...
+                                                      "bConvert2Cart", true);
+            dxStateCartFinal = dxStatesCartOut(:, end);
+
+            testCase.verifyEqual(dxStateCartFinal(1:3), dxStateCartInit(1:3), 'AbsTol', 1e-5);
+            testCase.verifyEqual(dxStateCartFinal(4:6), dxStateCartInit(4:6), 'AbsTol', 1e-8);
         end
 
-        function testMultiStepOutputSize(testCase)
-            dx0 = [7000; 0.1; 0; 0; 0; 0.2];
-            mu  = 398600.4418;
-            dt  = [100, 200, 300];
-            out = PropagateKeplerianElems(dx0, mu, dt);
-            testCase.verifySize(out, [6, numel(dt)+1]);
+        function TestEllipticalOnePeriodReturnsInitialState(testCase)
+            dSma = 12000;
+            dEcc = 0.35;
+            dIncl = 0.55;
+            dRaan = 1.10;
+            dArgPer = 0.70;
+            dTrueAnom = 0.0;
+            dxStateKeplInit = [dSma; dEcc; dIncl; dRaan; dArgPer; dTrueAnom];
+
+            dGravParam = 398600.4418;
+            dPeriodSec = 2.0 * pi * sqrt(dSma^3 / dGravParam);
+            dTimeGridSec = [0.0, dPeriodSec];
+
+            dxStatesOut = PropagateKeplerianElems(dxStateKeplInit, dGravParam, dTimeGridSec);
+            dxStateFinal = dxStatesOut(:, end);
+
+            testCase.verifyEqual(dxStateFinal(1:5), dxStateKeplInit(1:5), 'AbsTol', 1e-8);
+
+            dWrappedAnomalyErr = testPropagateKeplerianElems.ComputeWrappedAngleError_(dxStateFinal(6), dxStateKeplInit(6));
+            testCase.verifyLessThan(dWrappedAnomalyErr, 1e-8);
         end
 
-        function testInvalidEccentricityError(testCase)
-            % Negative eccentricity should error
-            dx0 = [7000; -0.1; 0; 0; 0; 0];
-            mu  = 398600.4418;
-            testCase.verifyError(@() PropagateKeplerianElems(dx0, mu, 0), 'MATLAB:assertion:failed', '?');
+        function TestEllipticalOnePeriodReturnsInitialCartesianState(testCase)
+            dSma = 12000;
+            dEcc = 0.35;
+            dIncl = 0.55;
+            dRaan = 1.10;
+            dArgPer = 0.70;
+            dTrueAnom = 0.0;
+            dxStateKeplInit = [dSma; dEcc; dIncl; dRaan; dArgPer; dTrueAnom];
+
+            dGravParam = 398600.4418;
+            dPeriodSec = 2.0 * pi * sqrt(dSma^3 / dGravParam);
+            dTimeGridSec = [0.0, dPeriodSec];
+
+            dxStateCartInit = kepl2rv(dxStateKeplInit, dGravParam, "rad");
+            dxStatesCartOut = PropagateKeplerianElems(dxStateKeplInit, ...
+                                                      dGravParam, ...
+                                                      dTimeGridSec, ...
+                                                      "bConvert2Cart", true);
+            dxStateCartFinal = dxStatesCartOut(:, end);
+
+            testCase.verifyEqual(dxStateCartFinal(1:3), dxStateCartInit(1:3), 'AbsTol', 1e-4);
+            testCase.verifyEqual(dxStateCartFinal(4:6), dxStateCartInit(4:6), 'AbsTol', 1e-7);
+        end
+
+        function TestAbsoluteTimeGridOutputSize(testCase)
+            dxStateKeplInit = [7000; 0.1; 0; 0; 0; 0.2];
+            dGravParam = 398600.4418;
+            dTimeGridSec = [0, 100, 200, 300];
+
+            dxStatesOut = PropagateKeplerianElems(dxStateKeplInit, dGravParam, dTimeGridSec);
+            testCase.verifySize(dxStatesOut, [6, numel(dTimeGridSec)]);
+        end
+
+        function TestNonIncreasingTimeGridThrowsAssertion(testCase)
+            dxStateKeplInit = [7000; 0.2; 0; 0; 0; 0.1];
+            dGravParam = 398600.4418;
+            dTimeGridSec = [0, 10, 10];
+
+            try
+                PropagateKeplerianElems(dxStateKeplInit, dGravParam, dTimeGridSec);
+                testCase.verifyFail('Expected an assertion for non-increasing time grid.');
+            catch ME
+                testCase.verifyTrue(contains(ME.message, 'Time grid must be strictly increasing'));
+            end
+        end
+
+        function TestHyperbolicBranchRunsWithoutUndefinedSymbols(testCase)
+            dxStateKeplInit = [-10000; 1.5; 0; 0; 0; 0.2];
+            dGravParam = 398600.4418;
+            dScalarHorizonSec = 50.0;
+
+            dxStatesOut = PropagateKeplerianElems(dxStateKeplInit, dGravParam, dScalarHorizonSec);
+            testCase.verifySize(dxStatesOut, [6, 2]);
+            testCase.verifyTrue(all(isfinite(dxStatesOut), 'all'));
+        end
+
+        function TestInvalidEccentricityError(testCase)
+            dxStateKeplInit = [7000; -0.1; 0; 0; 0; 0];
+            dGravParam = 398600.4418;
+            testCase.verifyError(@() PropagateKeplerianElems(dxStateKeplInit, dGravParam, 0), ...
+                                 'MATLAB:assertion:failed');
+        end
+    end
+
+    methods (Static, Access = private)
+        function dWrappedErr = ComputeWrappedAngleError_(dAngleA, dAngleB)
+            dWrappedErr = abs(atan2(sin(dAngleA - dAngleB), cos(dAngleA - dAngleB)));
         end
     end
 end

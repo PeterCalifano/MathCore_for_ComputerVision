@@ -1,7 +1,7 @@
 function dDCM = QuatSeq2DCM(dQuatRot, bIS_VSRPplus) %#codegen
 arguments
-    dQuatRot (4,:) double {ismatrix, mustBeNumeric}
-    bIS_VSRPplus (1,1) logical
+    dQuatRot        (4,:) double {mustBeNumeric}
+    bIS_VSRPplus    (1,1) logical
 end
 %% PROTOTYPE
 % dDCM = QuatSeq2DCM(dQuatRot, bIS_VSRPplus) %#codegen

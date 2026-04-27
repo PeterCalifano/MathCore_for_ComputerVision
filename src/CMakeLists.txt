@@ -19,8 +19,10 @@ add_subdirectory(template_src)
 message(STATUS "Adding module: template_src_kernels")
 add_subdirectory(template_src_kernels)
 
-message(STATUS "Adding module: programs")
-add_subdirectory(bin)
+if (BUILD_AS_MAIN_PROJECT)
+  message(STATUS "Adding module: programs")
+  add_subdirectory(bin)
+endif()
 
 # Exclude EXCLUDED_LIST from the list of src files
 set(EXCLUDED_LIST "")
@@ -39,8 +41,8 @@ add_library(${lib_name} SHARED
             ${srcLibFiles})
 
 # Link sanitizer target only for in-tree builds to avoid export/install deps.
-if (ENABLE_SANITIZERS AND TARGET sanitizer_target_interface)
-  target_link_libraries(${lib_name} PRIVATE sanitizer_target_interface)
+if (ENABLE_SANITIZERS AND SANITIZER_TARGET AND TARGET ${SANITIZER_TARGET})
+  target_link_libraries(${lib_name} PRIVATE ${SANITIZER_TARGET})
 endif()
 
 # If need to add other files after add_library, use:
@@ -76,16 +78,16 @@ target_link_libraries(${lib_name} PUBLIC ${project_name}_include)
 # Link interface target for CUDA
 
 if (ENABLE_CUDA)
-  target_link_libraries(${lib_name} PUBLIC cuda_compile_interface)
+  target_link_libraries(${lib_name} PUBLIC ${CUDA_COMPILE_TARGET})
 endif()
 
 # Link OptiX interface target
 if(ENABLE_OPTIX)
-  target_link_libraries(${lib_name} PUBLIC optix_compile_interface)
+  target_link_libraries(${lib_name} PUBLIC ${OPTIX_COMPILE_TARGET})
 endif()
 
 if (ENABLE_OPENGL)
-  target_link_libraries(${lib_name} PUBLIC opengl_compile_interface)
+  target_link_libraries(${lib_name} PUBLIC ${OPENGL_COMPILE_TARGET})
 endif()
 
 #target_include_directories(${lib_name} INTERFACE ${interface_INCLUDE_DIRS} ) 
@@ -104,14 +106,14 @@ set(installable_targets ${installable_targets}
                         ${project_name}_include)
                       
 if (ENABLE_CUDA)
-  list(APPEND installable_targets cuda_compile_interface)
+  list(APPEND installable_targets ${CUDA_COMPILE_TARGET})
   if(ENABLE_OPTIX)
-    list(APPEND installable_targets optix_compile_interface)
+    list(APPEND installable_targets ${OPTIX_COMPILE_TARGET})
   endif()
 endif()
 
 if (ENABLE_OPENGL)
-  list(APPEND installable_targets opengl_compile_interface)
+  list(APPEND installable_targets ${OPENGL_COMPILE_TARGET})
 endif()
 
 message(NOTICE "Added target to installable list: ${installable_targets}")

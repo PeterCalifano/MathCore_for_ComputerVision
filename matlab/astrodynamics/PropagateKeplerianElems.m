@@ -3,19 +3,19 @@ function [dxStates] = PropagateKeplerianElems(dxStateKeplInit, ...
                                                 dTimeGrid, ...
                                                 kwargs) %#codegen
 arguments
-    dxStateKeplInit (6,1) {isvector, mustBeNumeric}
-    dGravParam      (1,1) {isscalar, mustBeGreaterThan(dGravParam, 0)}
-    dTimeGrid       (1,:) {mustBeNumeric, isvector}
+    dxStateKeplInit (6,1) {mustBeNumeric}
+    dGravParam      (1,1) {mustBeGreaterThan(dGravParam, 0)}
+    dTimeGrid       (1,:) {mustBeNumeric}
 end
 arguments
-    kwargs.ui32MaxIter   (1,1) uint32 {mustBeNumeric,isscalar} = 50
-    kwargs.dRadAngleTol  (1,1) double {mustBeNumeric,isscalar} = 1e-9; % [rad]
-    kwargs.bConvert2Cart (1,1) logical {islogical} = false
+    kwargs.ui32MaxIter   (1,1) uint32 {mustBeNumeric} = 50
+    kwargs.dRadAngleTol  (1,1) double {mustBeNumeric} = 1e-9; % [rad]
+    kwargs.bConvert2Cart (1,1) logical = false
 end
 %% PROTOTYPE
 % [dxStates] = PropagateKeplerianElems(dxStateKeplInit, ...
 %                                      dGravParam, ...
-%                                      dDeltaTime, ...
+%                                      dTimeGrid, ...
 %                                      kwargs) %#codegen
 % -------------------------------------------------------------------------------------------------------------
 %% DESCRIPTION
@@ -26,65 +26,80 @@ end
 % -------------------------------------------------------------------------------------------------------------
 %% INPUT
 % arguments
-%     dxStateKeplInit (6,1) {isvector, mustBeNumeric}
-%     dGravParam      (1,1) {isscalar, mustBeGreaterThan(dGravParam, 0)}
-%     dDeltaTime      (1,:) {mustBeNumeric, isvector}
+%     dxStateKeplInit (6,1) {mustBeNumeric}
+%     dGravParam      (1,1) {mustBeGreaterThan(dGravParam, 0)}
+%     dTimeGrid       (1,:) {mustBeNumeric}
 % end
 % arguments
-%     kwargs.ui32MaxIter  (1,1) uint32 {mustBeNumeric,isscalar} = 50
-%     kwargs.dRadAngleTol (1,1) double {mustBeNumeric,isscalar} = 1e-9; % [rad]
-%     kwargs.bConvert2Cart   (1,1) logical {islogical} = false
+%     kwargs.ui32MaxIter   (1,1) uint32 {mustBeNumeric} = 50
+%     kwargs.dRadAngleTol  (1,1) double {mustBeNumeric} = 1e-9; % [rad]
+%     kwargs.bConvert2Cart (1,1) logical = false
 % end
 % -------------------------------------------------------------------------------------------------------------
 %% OUTPUT
-% dxStates: [6, Ntimes] States in keplerian or cartesian coordinates on the specified timegrid
+% dxStates:
+%   - If dTimeGrid is a scalar horizon dt > 0: [6,2] with states at t=[0,dt].
+%   - If dTimeGrid is scalar dt <= 0: [6,1] initial state only.
+%   - If dTimeGrid is a strictly increasing vector of absolute times: [6,Ntimes].
+%   States are in keplerian or cartesian coordinates based on kwargs.bConvert2Cart.
 % -------------------------------------------------------------------------------------------------------------
 %% CHANGELOG
 % 19-10-2023    Pietro Califano     First prototype coded. VALIDATED.
 % 01-05-2025    Pietro Califano     Major code refactoring for usage in Sequences dataset generation. Unit
 %                                   test case (class): testPropagateKeplerianElems
+% 14-02-2026   Pietro Califano      Update implementation and change of input interface, fix bugs
 % -------------------------------------------------------------------------------------------------------------
 %% DEPENDENCIES
 % [-]
 % -------------------------------------------------------------------------------------------------------------
-%% Future upgrades
-% [-]
-% -------------------------------------------------------------------------------------------------------------
+
 %% Function code
 
-ui32TimegridSize = length(dTimeGrid);
+dTimeGrid = double(dTimeGrid(:)');
+ui32NumInputTimes = uint32(numel(dTimeGrid));
 ui32MaxIter = kwargs.ui32MaxIter;
-dEPS_TIME = 1e-12;
+dEpsTime = 1e-12;
 dEcc = dxStateKeplInit(2);
 
 assert(dEcc >= 0, 'MATLAB:assertion:failed', ...
     sprintf('ERROR: eccentricity value must be non-negative. Found value: %.6g', dEcc))
 
-% Allocate output equal to input
-dxStates = zeros(6, ui32TimegridSize);
-dxStates(1:6, 1) = dxStateKeplInit; % Copy initial value
+if ui32NumInputTimes == 1
+    dPropagationHorizon = dTimeGrid(1);
+    assert(dPropagationHorizon >= 0.0, "Scalar propagation horizon must be non-negative.");
 
-% Check timegrid validity (t0 < t1 < ... < tN)
-if ui32TimegridSize > 2
-    assert(issorted(dTimeGrid) && all(diff(dTimeGrid) > 0), 'Time grid must be strictly increasing');
+    if dPropagationHorizon <= dEpsTime
+        dxStates = dxStateKeplInit;
+        if kwargs.bConvert2Cart == true
+            dxStates = kepl2rv(dxStates, dGravParam, "rad");
+        end
+        return;
+    end
 
-elseif dTimeGrid(1) <= dEPS_TIME
-    dxStates(1:6, 1) = dxStateKeplInit; % Copy initial value
-    dxStates = dxStates(1:6, 1);
-    return
+    dEvalTimeGrid = [0.0, dPropagationHorizon];
+else
+    assert(issorted(dTimeGrid) && all(diff(dTimeGrid) > 0), ...
+        'Time grid must be strictly increasing when passed as a vector of absolute times.');
+    dEvalTimeGrid = dTimeGrid;
 end
+
+ui32TimegridSize = uint32(numel(dEvalTimeGrid));
+
+% Allocate output equal to input
+dxStates = zeros(6, double(ui32TimegridSize));
+dxStates(1:6, 1) = dxStateKeplInit; % Copy initial value
 
 % Compute common quantities
 dMeanAngVel = sqrt(dGravParam / abs(dxStateKeplInit(1))^3 ); % Mean angular velocity of the orbit
 
 % Propagation loop
-for idT = 2:ui32TimegridSize
+for idT = 2:double(ui32TimegridSize)
     
     % Initialize propagator
-    dDeltaTime_ = dTimeGrid(idT) - dTimeGrid(idT-1);
+    dDeltaTime_ = dEvalTimeGrid(idT) - dEvalTimeGrid(idT-1);
     dxStates(1:6, idT) = dxStates(1:6, idT-1);
 
-    if abs(dDeltaTime_) <= dEPS_TIME
+    if abs(dDeltaTime_) <= dEpsTime
         continue;
     end
 
@@ -119,11 +134,14 @@ end
 persistent dSqrt1PlusEcc dEccPrev 
 
 if isempty(dEccPrev) 
-    % Initialize values
+    % Initialize cached values (for faster computation)
     dEccPrev = dKeplStatePrev(2);
     dSqrt1PlusEcc  = sqrt(1 + dKeplStatePrev(2));
+
 elseif abs(dEccPrev - dKeplStatePrev(2)) > 1E-14
-    % Eccentricity has changes, recompute values
+
+    % Eccentricity has changed, recompute values
+    dEccPrev = dKeplStatePrev(2);
     dSqrt1PlusEcc  = sqrt(1 + dKeplStatePrev(2));
 end
 
@@ -131,9 +149,8 @@ dEccThreshold = 1E-10;
 dKeplStateNext = dKeplStatePrev;
 
 % Get state values
-dSMA        = dKeplStatePrev(1);
-dEcc        = dKeplStatePrev(2);
-dTrueAnom   = dKeplStatePrev(6);
+dEcc = dKeplStatePrev(2);
+dTrueAnom = dKeplStatePrev(6);
 
 % Compute initial mean Anomaly based on the orbit type
 if dEcc >= 1 + dEccThreshold
@@ -200,7 +217,7 @@ ui32IterCount = uint32(0);
 % dHtmp = asinh(dMeanAnom/dEcc);
 
 if dEcc < 1.6
-    if (dMeanAnom > -pi && Mnext < 0) || dMeanAnom > pi
+    if (dMeanAnom > -pi && dMeanAnom < 0) || dMeanAnom > pi
         dHtmp = dMeanAnom - dEcc;
     else
         dHtmp = dMeanAnom + dEcc;
@@ -268,12 +285,10 @@ while dErrorValue > dRadAngleTol && ui32IterCount <= ui32MaxIter
     ui32IterCount = ui32IterCount + uint32(1);
 
     if ui32IterCount == ui32MaxIter
-        warning("Max number %d of iterations reached with error %6g.", ui32MaxIter, dErrorVal);
+        warning("Max number %d of iterations reached with error %6g.", ui32MaxIter, dErrorValue);
         return
     end
 end
 
 end
-
-
 

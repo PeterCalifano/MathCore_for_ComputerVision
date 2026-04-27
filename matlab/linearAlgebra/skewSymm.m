@@ -1,6 +1,6 @@
 function [dSkewSymmMatrix] = skewSymm(dVector) %#codegen
 arguments
-    dVector (3,1) double {isvector}
+    dVector (3,1) double {mustBeVector}
 end
 %% PROTOTYPE
 % [dSkewSymmMatrix] = skewSymm(dVector)

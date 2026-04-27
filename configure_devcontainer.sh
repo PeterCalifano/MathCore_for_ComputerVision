@@ -96,12 +96,12 @@ prompt_select() {
   shift 2
   local -a options=("$@")
   local i=1
-  echo "$prompt"
+  echo "$prompt" >&2
   for opt in "${options[@]}"; do
     if [[ "$opt" == "$default" ]]; then
-      printf "  %d) %s (default)\n" "$i" "$opt"
+      printf "  %d) %s (default)\n" "$i" "$opt" >&2
     else
-      printf "  %d) %s\n" "$i" "$opt"
+      printf "  %d) %s\n" "$i" "$opt" >&2
     fi
     ((i++))
   done
@@ -121,7 +121,7 @@ prompt_select() {
         return 0
       fi
     done
-    echo "Invalid selection."
+    echo "Invalid selection." >&2
   done
 }
 
