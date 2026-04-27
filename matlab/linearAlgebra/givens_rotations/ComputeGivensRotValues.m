@@ -1,20 +1,19 @@
-function [dCosTheta, dSinTheta] = GivensRotVals(dVec2) %#codegen
+function [dCosTheta, dSinTheta] = ComputeGivensRotValues(dVec2) %#codegen
 arguments (Input)
-    dVec2 (2,1) double {isvector}
+    dVec2 (2,1) double
 end
 arguments (Output)
     dCosTheta   (1,1) double 
     dSinTheta   (1,1) double 
 end
 %% SIGNATURE
-% [dCosTheta, dSinTheta] = GivensRotVals(dVec2) %#codegen
+% [dCosTheta, dSinTheta] = ComputeGivensRotValues(dVec2) %#codegen
 % -------------------------------------------------------------------------------------------------------------
 %% DESCRIPTION
-% Function computing the 2x2 Givens rotation matrix entries from 2x1 vector such that the second entry is
-% nulled out when G is applied to the vector, i.e. [r; 0] = G^T * dVec2. This corresponds to theta* angle.
+% Function computing the 2x2 Givens rotation matrix entries from 2x1 vector such that the second entry is nulled out when G is applied to the vector, i.e. [r; 0] = G^T * dVec2. This corresponds to theta* angle.
 % -------------------------------------------------------------------------------------------------------------
 %% INPUT
-% dVec2 (2,1) double {isvector}
+% dVec2 (2,1) double
 % -------------------------------------------------------------------------------------------------------------
 %% OUTPUT
 % dCosTheta   (1,1) double
@@ -27,7 +26,7 @@ end
 % [-]
 % -------------------------------------------------------------------------------------------------------------
 % Allocate default values for the case b = 0
-dCosTheta = 0.0;
+dCosTheta = 1.0;
 dSinTheta = 0.0; 
 
 if dVec2(2) == 0.0
