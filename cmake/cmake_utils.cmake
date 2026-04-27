@@ -1,8 +1,3 @@
-include_guard(GLOBAL)
-if(COMMAND add_examples AND COMMAND add_tests AND COMMAND filter_files_in_list)
-    return()
-endif()
-
 # CMAKE script containing utility functions for cmake configuration
 include_guard(GLOBAL)
 if(COMMAND add_examples AND COMMAND add_tests AND COMMAND filter_files_in_list)
