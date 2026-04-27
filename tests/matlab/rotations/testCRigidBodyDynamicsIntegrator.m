@@ -35,8 +35,8 @@ classdef testCRigidBodyDynamicsIntegrator < matlab.unittest.TestCase
 
         function testIntegrStepRK4Signature(testCase)
             % Ensure RK4 step returns correct sizes
-            dQuat0      = [1;0;0;0];
-            dOmega0     = [0.01; -0.05; 0.06];
+            dQuat0      = [0;1;0;0];
+            dOmega0     = zeros(3,1);
             fcnEval     = @(t,w,q) zeros(3,1);
 
             dTimestamp  = 0.0;
@@ -50,6 +50,7 @@ classdef testCRigidBodyDynamicsIntegrator < matlab.unittest.TestCase
             testCase.verifyEqual(dOmegaStagesVals, repmat(dNextOmega, 1, 4)); % Mocked dynamics RHS = zero --> omega should remain constant
             testCase.verifySize(dNextOmega, [3 1]);
             testCase.verifySize(dNextQuat,  [4,1]);         % 4 stages × 3 components
+            testCase.verifyEqual(dNextQuat, dQuat0, 'AbsTol', 1e-12);
             testCase.verifySize(dOmegaStagesVals, [3, 4]);  % 4 stages × 3 components
             testCase.verifySize(dStagesTimes, [1 4]);
         end
@@ -101,6 +102,77 @@ classdef testCRigidBodyDynamicsIntegrator < matlab.unittest.TestCase
             testCase.verifySize(dOmegaSeq, [3 numel(dTimegrid)]);
         end
 
+        function testIntegrateSupportsLieEulerAndRK4ConstantRate(testCase)
+            objIntegrator = CRigidBodyDynamicsIntegrator(eye(3), CQuatKinematicsIntegrator());
+
+            dTimegrid = 0:0.1:1.0;
+            dQuat0 = [1;0;0;0];
+            dOmega0 = [0;0;pi];
+            varTorque = zeros(3,1);
+            expectedQuat = [cos(pi/2); 0; 0; sin(pi/2)];
+            cellMethods = {'lie_euler', 'rk4'};
+
+            for ui32Idx = 1:numel(cellMethods)
+                [dQuatSeq, dOmegaSeq] = objIntegrator.integrate(dTimegrid, ...
+                                                                 dQuat0, ...
+                                                                 dOmega0, ...
+                                                                 varTorque, ...
+                                                                 0.1, ...
+                                                                 cellMethods{ui32Idx}, ...
+                                                                 true, ...
+                                                                 1.0);
+
+                testCase.verifyEqual(dOmegaSeq, repmat(dOmega0, 1, numel(dTimegrid)), 'AbsTol', 1e-12);
+                testCase.verifyEqual(dQuatSeq(:,end), expectedQuat, 'AbsTol', 1e-5);
+            end
+        end
+
+        function testIntegrateUsesActualPartialInternalStep(testCase)
+            objIntegrator = CRigidBodyDynamicsIntegrator(eye(3), CQuatKinematicsIntegrator());
+
+            dTimegrid = [0.0, 0.25, 0.5];
+            dQuat0 = [1;0;0;0];
+            dOmega0 = zeros(3,1);
+            varTorque = @(dTstamp, dOmega, dQuat0) [1;0;0];
+
+            [~, dOmegaSeq] = objIntegrator.integrate(dTimegrid, ...
+                                                     dQuat0, ...
+                                                     dOmega0, ...
+                                                     varTorque, ...
+                                                     0.2, ...
+                                                     'rk4_rkmk4', ...
+                                                     true, ...
+                                                     1.0);
+
+            expectedOmega = [0.0, 0.25, 0.5;
+                             0.0, 0.0,  0.0;
+                             0.0, 0.0,  0.0];
+            testCase.verifyEqual(dOmegaSeq, expectedOmega, 'AbsTol', 1e-10);
+        end
+
+        function testIntegrateDeducesInternalStepFromDefaultLimit(testCase)
+            objIntegrator = CRigidBodyDynamicsIntegrator(eye(3), CQuatKinematicsIntegrator());
+
+            dTimegrid = [0.0, 0.25, 0.5];
+            dQuat0 = [1;0;0;0];
+            dOmega0 = zeros(3,1);
+            varTorque = @(dTstamp, dOmega, dQuat0) [1;0;0];
+
+            [~, dOmegaSeq] = objIntegrator.integrate(dTimegrid, ...
+                                                     dQuat0, ...
+                                                     dOmega0, ...
+                                                     varTorque, ...
+                                                     0.0, ...
+                                                     'rk4_rkmk4', ...
+                                                     true, ...
+                                                     0.1);
+
+            expectedOmega = [0.0, 0.25, 0.5;
+                             0.0, 0.0,  0.0;
+                             0.0, 0.0,  0.0];
+            testCase.verifyEqual(dOmegaSeq, expectedOmega, 'AbsTol', 1e-10);
+        end
+
 
         function testZeroTorqueNonZeroInitialRate(testCase)
 
@@ -136,8 +208,6 @@ classdef testCRigidBodyDynamicsIntegrator < matlab.unittest.TestCase
         end
 
         function testConstantTorqueNonZeroInitialRate(testCase)
-
-            % TODO
 
             % With constant torque, angular momentum must not be constant
             I = diag([2,2,2]);

@@ -37,6 +37,20 @@ classdef testCQuatKinematicsIntegrator < matlab.unittest.TestCase
             testCase.verifyEqual(q, expected, 'AbsTol', testCase.Tolerance);
         end
 
+        function testExpMapSequence(testCase)
+            dq = [0,  pi, 0;
+                  0,  0,  pi;
+                  0,  0,  0];
+
+            q = CQuatKinematicsIntegrator.ExpMap(dq);
+            expected = [1,  cos(pi/2),  cos(pi/2);
+                        0,  sin(pi/2),  0;
+                        0,  0,          sin(pi/2);
+                        0,  0,          0];
+
+            testCase.verifyEqual(q, expected, 'AbsTol', testCase.Tolerance);
+        end
+
         function testZeroOmegaRK4(testCase)
             % Integrating zero angular velocity yields constant quaternion
             q0   = [1;0;0;0];
@@ -127,8 +141,38 @@ classdef testCQuatKinematicsIntegrator < matlab.unittest.TestCase
         end
 
         function testOmegaAngVelProfileRKMK4(testCase)
-            % TODO
-            error('Not implemented yet')
+            q0 = [1;0;0;0];
+            omegaProfile = [0, 0.5*pi, pi;
+                            0, 0,      0;
+                            0, 0,      0];
+            tgrid = [10, 10.5, 11.0];
+
+            [qEnd, dTimegridOut, qSeq] = testCase.Integr.integrate(q0, ...
+                                                                   omegaProfile, ...
+                                                                   tgrid, ...
+                                                                   'rkmk4', ...
+                                                                   0.25, ...
+                                                                   1.0, ...
+                                                                   tgrid, ...
+                                                                   'linear');
+
+            expected = [cos(pi/4); sin(pi/4); 0; 0];
+            testCase.verifyEqual(qEnd, expected, 'AbsTol', 5e-4);
+            testCase.verifyEqual(dTimegridOut, tgrid, 'AbsTol', 1e-10);
+            testCase.verifyEqual(qSeq(:,1), q0, 'AbsTol', testCase.Tolerance);
+        end
+
+        function testOmegaFcnHandleRKMK4UsesInternalSubstepTime(testCase)
+            q0 = [1;0;0;0];
+            omega = @(dT) [0; 0; pi * (dT - 10)];
+            tgrid = [10, 10.5, 11.0];
+
+            [qEnd, dTimegridOut, qSeq] = testCase.Integr.integrate(q0, omega, tgrid, 'rkmk4', 0.25);
+
+            expected = [cos(pi/4); 0; 0; sin(pi/4)];
+            testCase.verifyEqual(qEnd, expected, 'AbsTol', 5e-4);
+            testCase.verifyEqual(dTimegridOut, tgrid, 'AbsTol', 1e-10);
+            testCase.verifyEqual(qSeq(:,1), q0, 'AbsTol', testCase.Tolerance);
         end
 
         function testOmegaFcnHandleRKMK4(testCase)
