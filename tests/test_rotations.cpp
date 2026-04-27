@@ -1,5 +1,5 @@
-#include <catch2/catch_test_macros.hpp>
 #include <catch2/catch_approx.hpp>
+#include <catch2/catch_test_macros.hpp>
 
 #include <array>
 #include <cmath>
@@ -38,6 +38,28 @@ TEST_CASE("quaternion_distance_is_zero_for_equivalent_sign_flip", "[rotations]")
     const Eigen::Vector4d rhs = -lhs;
 
     REQUIRE(mathcore::quaternionDistance(lhs, rhs) == Catch::Approx(0.0));
+}
+
+TEST_CASE("rotation_aliases_and_products_match_primary_api", "[rotations]")
+{
+    Eigen::Vector4d identity;
+    identity << 1.0, 0.0, 0.0, 0.0;
+
+    const double angle = std::acos(-1.0) / 2.0;
+    Eigen::Vector4d target;
+    target << std::cos(angle / 2.0), 0.0, 0.0, std::sin(angle / 2.0);
+
+    const auto product = mathcore::quaternionProduct(identity, target);
+    const auto alias_product = mathcore::quatCross(identity, target);
+    const auto alias_dcm = mathcore::quatToDcm(target);
+    const auto alias_distance = mathcore::quatDotProductDistance(target, product);
+    const auto alias_slerp = mathcore::sphericalLerp(identity, target, 0.5);
+
+    REQUIRE(product.isApprox(target, 1e-12));
+    REQUIRE(alias_product.isApprox(product, 1e-12));
+    REQUIRE(alias_dcm.isApprox(mathcore::quaternionToDcm(target), 1e-12));
+    REQUIRE(alias_distance == Catch::Approx(0.0));
+    REQUIRE(alias_slerp.isApprox(mathcore::slerp(identity, target, 0.5), 1e-12));
 }
 
 TEST_CASE("std_array_quaternion_support_round_trips_and_interpolates", "[rotations]")

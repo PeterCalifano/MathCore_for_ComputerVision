@@ -3,18 +3,18 @@ requires = ["setuptools>=61", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "mathcore_for_cv"
-version = "0.2.0"
-description = "Python bindings for mathcore_for_cv."
+name = "@PROJECT_NAME@"
+version = "@PROJECT_VERSION@"
+description = "Python bindings for @PROJECT_NAME@."
 requires-python = ">=3.12"
 license = {text = "MIT"}
 authors = [
-  {name = "mathcore_for_cv contributors"}
+  {name = "@PROJECT_NAME@ contributors"}
 ]
 
 [tool.setuptools]
-packages = ["mathcore_for_cv"]
+packages = ["@PROJECT_NAME@"]
 include-package-data = true
 
 [tool.setuptools.package-data]
-"mathcore_for_cv" = ["*.so", "*.pyd", "*.dylib", "*.pyi", "**/*.pyi"]
+"@PROJECT_NAME@" = ["*.so", "*.pyd", "*.dylib", "*.pyi", "**/*.pyi"]

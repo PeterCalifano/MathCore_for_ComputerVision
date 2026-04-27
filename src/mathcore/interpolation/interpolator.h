@@ -54,7 +54,7 @@ namespace mathcore
 
         const int effectiveNumTestPoints = std::min(numTestPoints, static_cast<int>(interpolationDomain.size()));
 
-        // Generate a random permutation of indices corresponding to the interpolation domain samples
+        // DEVNOTE: Draw a validation subset without replacement so the post-fit
         std::vector<int> allIndices(static_cast<std::size_t>(interpolationDomain.size()));
         std::iota(allIndices.begin(), allIndices.end(), 0);
 
@@ -242,6 +242,8 @@ namespace mathcore
                 const auto reference_norm = data_points.at(static_cast<std::size_t>(index)).norm();
                 if (reference_norm > scalar_type(10) * std::numeric_limits<scalar_type>::epsilon())
                 {
+                    // Skip relative scaling for near-zero references, where the ratio would be
+                    // dominated by numerical noise rather than interpolation quality.
                     relative_errors(index) = absolute_errors(index) / reference_norm;
                 }
             }
@@ -254,11 +256,13 @@ namespace mathcore
         }
 
         /**
-         * @brief Removes sign flips from a quaternion sample sequence before fitting
+         * @brief Removes sign flips from a quaternion sample sequence before fitting.
+         * @details Consecutive samples representing the same attitude may legitimately differ by a global sign.
+         *          This pass enforces local sign continuity so polynomial fitting operates on a smooth coefficient trace.
          *
-         * @param quaternion_matrix
+         * @param quaternion_matrix Quaternion samples stored column-wise in scalar-first form.
          */
-        void patchDiscontinuities(Eigen::Matrix<Scalar, 4, Eigen::Dynamic> &quaternion_matrix)
+        void patchDiscontinuities(matrix_type &quaternion_matrix)
         {
             if (quaternion_matrix.rows() != 4)
             {
@@ -276,14 +280,11 @@ namespace mathcore
             std::vector<bool> sign_switch_detection_mask(num_samples, false);
             Eigen::Matrix<Scalar, 4, 1> previous = quaternion_matrix.col(0);
 
-            // TODO: review implementation and test more
-
-            // Loop through quaternion samples and detect sign flips by checking the dot product between consecutive quaternions
+            // Flip a sample whenever it would create a negative dot product with the already-patched predecessor.
             for (std::size_t column = 1; column < num_samples; ++column)
             {
                 Eigen::Matrix<Scalar, 4, 1> current = quaternion_matrix.col(static_cast<Eigen::Index>(column));
 
-                // If the dot product between the current and previous quaternion is negative, sign flip
                 if (previous.dot(current) < scalar_type(0))
                 {
                     current = -current;
@@ -323,6 +324,8 @@ namespace mathcore
                 transitions.push_back(num_samples);
             }
 
+            // Compress the per-sample boolean mask into closed index intervals so later queries
+            // can test membership without replaying the sign-patching logic.
             for (std::size_t index = 0; index + 1 < transitions.size(); index += 2)
             {
                 switch_intervals_.emplace_back(transitions[index], transitions[index + 1] - 1);
@@ -347,6 +350,8 @@ namespace mathcore
             vector_type scaled_domain(interpolation_domain.size());
             for (Eigen::Index index = 0; index < interpolation_domain.size(); ++index)
             {
+                // Affine map from [lower_bound, upper_bound] to [-1, 1], which is the natural
+                // domain for the Chebyshev basis used by the derived interpolators.
                 scaled_domain(index) =
                     (scalar_type(2) * interpolation_domain(index) - (upper_bound + lower_bound)) /
                     (upper_bound - lower_bound);
@@ -377,6 +382,8 @@ namespace mathcore
 
             const auto *data = scaled_interpolation_domain.data();
             const auto num_times = static_cast<std::size_t>(scaled_interpolation_domain.size());
+            // lower_bound returns the first sample at or after the query; treating that location
+            // as the owning bucket is sufficient because switch regions are tracked by sample index.
             const auto *iterator = std::lower_bound(data, data + num_times, scaled_eval_point);
             const std::size_t index = std::min<std::size_t>(static_cast<std::size_t>(std::distance(data, iterator)),
                                                             num_times - 1);
@@ -390,6 +397,21 @@ namespace mathcore
 
       protected:
         // PROTECTED METHODS
+        /// Replaces the interpolation domain and refreshes the cached bounds and scaled representation.
+        void updateInterpolationDomain(const vector_type &interpolation_domain)
+        {
+            if (interpolation_domain.size() == 0)
+            {
+                throw std::invalid_argument("Interpolation domain cannot be empty.");
+            }
+
+            interpolation_domain_ = interpolation_domain;
+            scaled_interpolation_domain_ = scaleInterpolationDomain(interpolation_domain_);
+            domain_size_ = static_cast<int>(interpolation_domain_.size());
+            time_lower_bound_ = interpolation_domain_.minCoeff();
+            time_upper_bound_ = interpolation_domain_.maxCoeff();
+        }
+
         /// Checks whether an evaluation point lies inside the configured domain bounds.
         [[nodiscard]] bool checkEvalPointValidity(const scalar_type eval_point) const
         {
