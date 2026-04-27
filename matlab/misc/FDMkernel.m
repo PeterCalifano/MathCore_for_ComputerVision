@@ -25,11 +25,6 @@ function [fDot, fDotDot] = FDMkernel(samplesPoints, samplesTimegrid, type) %#cod
 %% DEPENDENCIES
 %  [-]
 % -------------------------------------------------------------------------------------------------------------
-%% Future upgrades
-% 1) Mexed version
-
-% States along a column
-% Get number of points
 [stateLen, Npoints] = size(samplesPoints);
 
 y = zeros(Npoints, 1);

@@ -15,11 +15,7 @@ classdef (Abstract) CInterpolator < handle
     %% DEPENDENCIES
     % [-]
     % -------------------------------------------------------------------------------------------------------------
-    %% Future upgrades
-    % [-]
-    % -------------------------------------------------------------------------------------------------------------
-
-    properties (SetAccess = protected, GetAccess = public)
+properties (SetAccess = protected, GetAccess = public)
 
         % Settings
         enumInterpType;
@@ -45,7 +41,6 @@ classdef (Abstract) CInterpolator < handle
         dSwitchIntervals
 
     end
-
 
     methods (Access = public)
         %% CONSTRUCTOR
@@ -100,7 +95,6 @@ classdef (Abstract) CInterpolator < handle
 
         % METHODS
 
-
     end
 
     methods (Access = protected)
@@ -147,7 +141,6 @@ classdef (Abstract) CInterpolator < handle
                 end
 
             end
-
 
             % Return fixed data matrix
             dModifiedDataMatrix = dQuatMatrix_fromAtoB';
@@ -222,7 +215,6 @@ classdef (Abstract) CInterpolator < handle
             % DEVNOTE TODO: Check if evaluation point (in dEvalDomain fall outside self.dInterpDomain)
             % warning('TODO: add check on dEvalDomain vs self.dInterpDomain')
 
-
             % Evaluation at test points
             ui32testpointsIDs = uint32(sort( randi( length(dEvalDomain), ui32Npoints, 1 ), 'ascend' ));
             
@@ -292,9 +284,7 @@ classdef (Abstract) CInterpolator < handle
                 end
             end
 
-
         end
-
 
 end
 

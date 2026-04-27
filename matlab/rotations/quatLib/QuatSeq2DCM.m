@@ -30,10 +30,6 @@ end
 %% DEPENDENCIES
 % [-]
 % -------------------------------------------------------------------------------------------------------------
-%% Future upgrades
-% [-]
-% -------------------------------------------------------------------------------------------------------------
-
 %% Function code
 % Output array initialization
 ui32Nquats = size(dQuatRot, 2);
@@ -42,6 +38,5 @@ dDCM = coder.nullcopy(zeros(3, 3, ui32Nquats));
 for idV = 1:ui32Nquats
     dDCM(:, :, idV) = Quat2DCM(dQuatRot(:, idV), bIS_VSRPplus);
 end
-
 
 end

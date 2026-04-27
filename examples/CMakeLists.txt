@@ -2,8 +2,14 @@ set(lib_name ${project_name}) # Default name for the library is project_name
 
 set(EXCLUDED_LIST "example_build")
 
+if(NOT COMMAND add_examples)
+  include("${CMAKE_SOURCE_DIR}/cmake/cmake_utils.cmake")
+endif()
+
 # Add subdirectories
-add_subdirectory(template_examples)
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/template_examples/CMakeLists.txt")
+  add_subdirectory(template_examples)
+endif()
 
 # Add examples files in this directory
 add_examples(${project_name} EXCLUDED_LIST ${CUDA_COMPILE_TARGET})

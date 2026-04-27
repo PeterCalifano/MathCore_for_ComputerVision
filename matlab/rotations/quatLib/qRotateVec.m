@@ -22,9 +22,6 @@ function  o_vector_Ref2 = qRotateVec(i_dqRef1wrtRef2, i_vector_Ref1, i_bIS_VSRPp
 %% DEPENDENCIES
 % [-]
 % -------------------------------------------------------------------------------------------------------------
-%% Future upgrades
-% [-]
-% -------------------------------------------------------------------------------------------------------------
 %% Function code
 % Initialize output array
 o_vector_Ref2 = coder.nullcopy(zeros(3, 1));
@@ -69,7 +66,6 @@ o_vector_Ref2(1:3) = tmpVec(1:3);
             -q1(3) q1(4) q1(1) q1(2); ...
             q1(2) -q1(1) q1(4) q1(3); ...
             -q1(1) -q1(2) -q1(3) q1(4)] * q2;
-
 
     end
 end

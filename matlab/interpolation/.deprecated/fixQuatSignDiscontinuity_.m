@@ -28,9 +28,6 @@ end
 %% DEPENDENCIES
 % [-]
 % -------------------------------------------------------------------------------------------------------------
-%% Future upgrades
-% [-]
-% -------------------------------------------------------------------------------------------------------------
 %% Function code
 
 % Sign discontinuity detector and fix (ATTITUDE QUATERNION ONLY)
@@ -77,6 +74,5 @@ assert(sum(all(ischange(sign(interpSignal)), 2) == true) == 0, ...
 % Extract three components of the quaternion
 % i_dDataMatrix = interpSignal(:, 1:3)';
 dDataMatrix = interpSignal';
-
 
 end

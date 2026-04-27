@@ -27,10 +27,6 @@ function dQuatSequenceOut = PerturbQuaternionSequence(dQuatSequenceOrig, ...
 %% DEPENDENCIES
 % [-]
 % -------------------------------------------------------------------------------------------------------------
-%% Future upgrades
-% [-]
-% -------------------------------------------------------------------------------------------------------------
-
 arguments (Input)
     dQuatSequenceOrig           (4,:) double
     dTimeStep                   (1,1) double {mustBePositive}
@@ -92,5 +88,4 @@ dHalfTheta = 0.5 * dTheta;
 dQuatErr = [cos(dHalfTheta); dAxis * sin(dHalfTheta)];
 
 end
-
 

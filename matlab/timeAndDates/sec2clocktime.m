@@ -20,10 +20,6 @@ function [hours, minutes, seconds] = sec2clocktime(time_in_seconds, display_flag
 % DEPENDENCIES
 % [-]
 % -------------------------------------------------------------------------
-% Future upgrades
-% [-]
-% -------------------------------------------------------------------------
-
 if ~exist('var_name', 'var')
     string = 'Time = ';
 elseif exist('var_name', 'var')

@@ -1,4 +1,4 @@
-# build_lib.sh — Detailed changes & option reference
+# build_lib.sh - Detailed changes & option reference
 
 ## 1) Shell safety & ergonomics
 
@@ -42,7 +42,7 @@ The script now uses **GNU `getopt`** to support:
 
 ---
 
-## 3) Options — full reference
+## 3) Options - full reference
 
 ### Build layout & performance
 
@@ -66,6 +66,7 @@ The script now uses **GNU `getopt`** to support:
 * **`-r, --rebuild-only`**
   Skip CMake configure; just build an already-configured tree.
   Useful when you’ve only changed sources and not CMake options.
+  Wrapper requests passed together with `-r` only work if that build directory was already configured with wrappers enabled.
 
 * **`-t, --type <t> | --type-build <t>`**
   Set CMake build type (`Debug`, `Release`, `RelWithDebInfo`, `MinSizeRel`). Input is case-insensitive.
@@ -77,6 +78,11 @@ The script now uses **GNU `getopt`** to support:
   Example: `-f "-march=native"`.
   These are added **before** the auto-appended warnings, so you can still override with `-Wno-...` if needed.
 
+* **`-D, --define <VAR=VAL>`**
+  Pass extra CMake cache definitions (repeatable).
+  Example:
+  `-D ENABLE_CUDA=ON -D CUDA_ENABLE_FMAD=ON -D ENABLE_TBB=ON`.
+
 * **`-n, --no-optim`**
   Sets `-DNO_OPTIMIZATION=ON` in the CMake cache. Your toolchain/CMakeLists can use this to toggle optimizer knobs (e.g., turn off vectorization or special CPU flags independent of `CMAKE_BUILD_TYPE`).
 
@@ -85,10 +91,24 @@ The script now uses **GNU `getopt`** to support:
   Example: `--toolchain cmake/toolchains/clang.cmake`.
 
 * **`-p, --python-wrap`**
-  Adds `-DGTWRAP_BUILD_PYTHON_DEFAULT=ON` to enable wrappers by default for all subprojects.
+  Enables Python wrappers by setting:
+  `-DGTWRAP_BUILD_PYTHON_DEFAULT=ON` and `-D<project>_BUILD_PYTHON_WRAPPER=ON`.
+  After the standard build, it also ensures the resolved Python wrapper target is built explicitly when that target exists in the configured cache.
+  If `src/wrap_interface.i` is missing, or if the configured `*_WRAPPER_INTERFACE_FILES` list is invalid, CMake auto-disables wrappers and the script emits a warning instead of failing the whole build.
 
 * **`-m, --matlab-wrap`**
-  Adds `-DGTWRAP_BUILD_MATLAB_DEFAULT=ON` to enable wrappers by default for all subprojects.
+  Enables MATLAB wrappers by setting:
+  `-DGTWRAP_BUILD_MATLAB_DEFAULT=ON` and `-D<project>_BUILD_MATLAB_WRAPPER=ON`.
+
+* **`--gtwrap-root <dir>`**
+  Pins wrapper generation to a local wrap checkout.
+  The script forwards this as:
+  `-D<project>_GTWRAP_ROOT_DIR=<dir>` when the project name is detected, otherwise `-DGTWRAP_ROOT_DIR=<dir>`.
+
+* **`--no-wrap-update`**
+  Disables automatic update of local wrap checkout. By default, wrapper builds
+  auto-detect `./wrap`, `./lib/wrap`, and `../wrap`, then update to latest
+  `origin/master` (including detached/tag checkouts).
 
 * **`-i, --install`**
   After a successful build (and tests), runs the `install` target.
@@ -148,6 +168,52 @@ The script now uses **GNU `getopt`** to support:
 10. **Case‑insensitive build types**: `debug`, `Debug`, `DEBUG` all map to `Debug`.
 11. **Automatic warnings**: `-Wall -Wextra -Wpedantic` are appended for common build types. If you pass your own `-W...` flags, they’ll be respected.
 12. **Environment override for jobs**: set `JOBS=64` in CI to change default parallelism without touching scripts.
+13. **Pipefail-safe wrapper probe**: the post-build Python wrapper target check no longer uses a `cmake --build ... --target help | rg -q ...` pipeline, so `-p` does not emit a false missing-target warning after a successful wrapper build.
+14. **Cache-aware wrapper diagnostics**: when Python wrappers are requested but absent, the script now reports whether `--rebuild-only` reused a non-wrapper cache, whether CMake ended up with `<project>_BUILD_PYTHON_WRAPPER=OFF`, and whether wrappers were auto-disabled because interface files were missing or invalid.
+
+---
+
+## 6) New CMake usage patterns (optimization, CUDA, TBB)
+
+These are configured through `-D/--define` and live in CMake (not dedicated `build_lib.sh` flags).
+
+### CPU optimization toggles
+
+* `CPU_ENABLE_NATIVE_TUNING=ON` (default):
+  adds `-march=native -mtune=native` for optimized builds.
+* `CPU_ENABLE_SIMD=ON` + `CPU_SIMD_LEVEL=<native|sse4.2|avx|avx2|avx512f>`:
+  adds explicit SIMD ISA flags.
+* `CPU_ENABLE_FMA=ON`:
+  adds `-mfma`.
+* `CPU_EXTRA_OPT_FLAGS="..."`:
+  appends additional CPU optimization flags.
+
+### CUDA optimization toggles
+
+* `CUDA_ENABLE_FMAD=ON|OFF`:
+  controls NVCC fused multiply-add contraction (`--fmad=true/false`).
+* `CUDA_ENABLE_EXTRA_DEVICE_VECTORIZATION=ON|OFF`:
+  adds `--extra-device-vectorization`.
+* `CUDA_USE_FAST_MATH=ON|OFF`:
+  applies `--use_fast_math` to regular CUDA compilation.
+* `CUDA_NVCC_EXTRA_FLAGS="..."`:
+  appends extra NVCC flags to CUDA compilation.
+
+### CUDA architecture detection
+
+* If `CUDA_ARCHITECTURES` is set, the template uses it directly.
+* Else if `CMAKE_CUDA_ARCHITECTURES` is set, the template uses it directly.
+* Else on `x86_64`/`amd64`, the template requires a working `nvidia-smi` and fails fast if it is missing, fails, or returns malformed data.
+* Else on `aarch64`/`arm64`, the template tries `nvidia-smi` first and then falls back to native Jetson/Tegra markers:
+  * Xavier / `tegra194` -> `72`
+  * Orin / `tegra234` -> `87`
+  * Thor / `tegra264` -> `101`
+* If auto-detection is unavailable or ambiguous, configure fails with guidance to set `CUDA_ARCHITECTURES` or `CMAKE_CUDA_ARCHITECTURES` explicitly.
+
+### TBB support
+
+* `ENABLE_TBB=ON`:
+  enables oneTBB via `find_package(TBB REQUIRED COMPONENTS tbb)` and links `TBB::tbb`.
 
 ---
 
@@ -162,7 +228,43 @@ The script now uses **GNU `getopt`** to support:
 * **Debug + Ninja + extra flags + 12 jobs**:
 
   ```bash
-  ./build_lib.sh -t debug -N -j 12 -f "-march=native -g3"
+  ./build_lib.sh -t debug -N -j 12 -f "-g3"
+  ```
+
+* **Portable release build** (disable native tuning):
+
+  ```bash
+  ./build_lib.sh -t release -D CPU_ENABLE_NATIVE_TUNING=OFF
+  ```
+
+* **Enable AVX2 + FMA + TBB**:
+
+  ```bash
+  ./build_lib.sh -D ENABLE_TBB=ON -D CPU_ENABLE_SIMD=ON -D CPU_SIMD_LEVEL=avx2 -D CPU_ENABLE_FMA=ON
+  ```
+
+* **CUDA build with explicit NVCC optimization toggles**:
+
+  ```bash
+  ./build_lib.sh -D ENABLE_CUDA=ON -D CUDA_ENABLE_FMAD=ON -D CUDA_ENABLE_EXTRA_DEVICE_VECTORIZATION=ON
+  ```
+
+* **Python + MATLAB wrappers using installed gtwrap**:
+
+  ```bash
+  ./build_lib.sh -p -m
+  ```
+
+* **Python wrapper with a local wrap checkout**:
+
+  ```bash
+  ./build_lib.sh -p --gtwrap-root /path/to/wrap
+  ```
+
+* **Rebuild only on a cache that already has Python wrapping enabled**:
+
+  ```bash
+  ./build_lib.sh -r -p
   ```
 
 * **Release + tests + install into system prefix**:
@@ -191,9 +293,31 @@ The script now uses **GNU `getopt`** to support:
 
 ---
 
-## 8) Optional future extensions
+## 8) Wrapper packaging notes
 
-* `--preset <name>` → `cmake --preset <name>` / `cmake --build --preset <name>` / `ctest --preset <name>`.
+* Python package metadata is owned by `python/pyproject.toml.in` and configured into `python/pyproject.toml` when Python wrapping is enabled.
+* The optional `python/setup.py.in` augments source-package installation behavior without duplicating package metadata.
+* `python/<project>/__init__.py` is the public entrypoint and exports `HAS_WRAPPER`.
+* CMake updates `python/<project>/_wrapper_build.py` so the source package can resolve the latest requested wrapper build.
+* Missing `python/<project>/__init__.py` or `python/pyproject.toml.in` no longer blocks wrapper builds in the template: CMake generates minimal fallbacks when needed.
+* Supported install paths are:
+
+  ```bash
+  cd python
+  python -m pip install .
+  ```
+
+  ```bash
+  cmake --build <build_dir> --target python-install
+  ```
+
+  In Conda workflows, activate the target env before running `pip install`.
+
+---
+
+## 9) Optional future extensions
+
+* `--preset <name>` --> `cmake --preset <name>` / `cmake --build --preset <name>` / `ctest --preset <name>`.
 * Sanitizer toggles for debug: `--asan`, `--ubsan`, `--tsan` that append safe defaults and adjust `LD_PRELOAD`/`ASAN_OPTIONS` for tests.
 * Colorized `ctest` output via `--output-on-failure` (already used) and `CTEST_OUTPUT_ON_FAILURE=1` environment.
 

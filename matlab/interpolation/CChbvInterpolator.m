@@ -17,16 +17,11 @@ classdef CChbvInterpolator < CInterpolator
     %% DEPENDENCIES
     % [-]
     % -------------------------------------------------------------------------------------------------------------
-    %% Future upgrades
-    % [-]
-    % -------------------------------------------------------------------------------------------------------------
-
-    properties (SetAccess = protected, GetAccess = public)
+properties (SetAccess = protected, GetAccess = public)
         % No data member specific to this class
         bUSE_MEX;
         bMEX_AVAILABLE = false;
     end
-
 
     methods (Access = public)
         %% CONSTRUCTOR
@@ -56,7 +51,6 @@ classdef CChbvInterpolator < CInterpolator
         % SETTERS
 
         % METHODS
-
 
     end
 
@@ -150,7 +144,6 @@ classdef CChbvInterpolator < CInterpolator
 
         end
 
-
         % Data matrix fitting method
         function [self, dInterpCoeffsMatrixT, strFitStats] = fitDataMatrix(self, dDataMatrix)
             arguments
@@ -215,9 +208,6 @@ classdef CChbvInterpolator < CInterpolator
         end
 
     end
-
-
-
 
     % Abstract methods
     % methods (Abstract, Access=protected)

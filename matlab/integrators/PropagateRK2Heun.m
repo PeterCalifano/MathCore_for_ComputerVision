@@ -25,9 +25,6 @@ function [xState, evalcounter, starter_fk] = PropagateRK2Heun(RHS, tspan, x0)
 %% DEPENDENCIES
 % [-]
 % -------------------------------------------------------------------------------------------------------------
-%% Future upgrades
-% 1) Reworking
-% -------------------------------------------------------------------------------------------------------------
 %% Function code
 ifnotstarter = 1;
 
@@ -77,6 +74,5 @@ for idt = 1:length(tspan)
     evalcounter = evalcounter + 1;
 end
 xState = xk(1:end-1, :);
-
 
 end

@@ -24,9 +24,6 @@ function [fDot_array, fDotDot_array] = FiniteDiffDeriv(samplesPoints, samplesTim
 %% DEPENDENCIES
 %  FDMKernel()
 % -------------------------------------------------------------------------------------------------------------
-%% Future upgrades
-% 1) Mexed version
-
 %% Function code
 NtimeInstants = length(samplesTimegrid);
 [Nstates, Nsamples] = size(samplesPoints);
@@ -40,7 +37,6 @@ dtgrid = abs(diff(samplesTimegrid));
 if  abs(max(dtgrid) - min(dtgrid)) > (1e-6)*min(dtgrid)
     disp(['Uniform spacing check failed. FDM may fail. Delta MaxDt and MinDt : ', sprintf('%2.6f', abs(max(dtgrid) - min(dtgrid)))]);
 end
-
 
 if NtimeInstants <= 3 && mustBeNumeric(samplesTimegrid)
     % Apply Kernel function directly ("Single window application")
@@ -82,7 +78,6 @@ elseif NtimeInstants > 3 && mustBeNumeric(samplesTimegrid)
 else
     error('Timegrid array is not numeric.')
 end
-
 
 %% Kernel function
 

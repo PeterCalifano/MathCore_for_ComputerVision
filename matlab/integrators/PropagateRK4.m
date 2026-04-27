@@ -25,9 +25,6 @@ function [xState, evalcounter, starter_fk] = PropagateRK4(RHS, tspan, state0) %#
 %% DEPENDENCIES
 % [-]
 % -------------------------------------------------------------------------------------------------------------
-%% Future upgrades
-% [-]
-% -------------------------------------------------------------------------------------------------------------
 %% Function code
 ifnotstarter = 1;
 
@@ -103,7 +100,6 @@ end
 if ifnotstarter == 0
     xState = xState(:, 1:end-1);
 end
-
 
 end
 

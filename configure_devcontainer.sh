@@ -231,20 +231,20 @@ while [[ $# -gt 0 ]]; do
       BASE_IMAGE_SET="yes"
       ;;
     --ros)
-      shift
       ROS_MODE="ros"
-      ROS_DISTRO="${1:-}"
       ROS_MODE_SET="yes"
-      if [[ -n "$ROS_DISTRO" ]]; then
+      if [[ $# -ge 2 && "${2}" != -* ]]; then
+        shift
+        ROS_DISTRO="$1"
         ROS_DISTRO_SET="yes"
       fi
       ;;
     --ros2)
-      shift
       ROS_MODE="ros2"
-      ROS_DISTRO="${1:-}"
       ROS_MODE_SET="yes"
-      if [[ -n "$ROS_DISTRO" ]]; then
+      if [[ $# -ge 2 && "${2}" != -* ]]; then
+        shift
+        ROS_DISTRO="$1"
         ROS_DISTRO_SET="yes"
       fi
       ;;
@@ -287,11 +287,14 @@ if [[ "$NON_INTERACTIVE" != "yes" ]]; then
     CUDA="$(prompt_bool "Enable CUDA support?" "$cuda_prompt_default")"
   fi
 
+  echo "Selected CUDA support: $CUDA"
+
   # Base image
   if [[ -z "$BASE_IMAGE" && "$BASE_SET" != "yes" ]]; then
     if ! contains_value "$BASE" "${BASE_OPTIONS[@]}"; then
       BASE="${BASE_OPTIONS[0]}"
     fi
+    echo "Current base image: $BASE"
     BASE="$(prompt_select "Select base image:" "$BASE" "${BASE_OPTIONS[@]}")"
   fi
   if [[ -z "$BASE_IMAGE" && "$BASE" != "custom" ]]; then
@@ -305,8 +308,10 @@ if [[ "$NON_INTERACTIVE" != "yes" ]]; then
     BASE_IMAGE="$(prompt_text "Enter full base image" "$default_custom")"
   fi
 
+  echo "Selected base image: $BASE"
+
   # ROS / ROS 2
-  if [[ "$ROS_MODE_SET" != "yes" && "$ROS_MODE" != "none" ]]; then
+  if [[ "$ROS_MODE_SET" != "yes" ]]; then
     ROS_MODE="$(prompt_select "Select ROS option:" "$ROS_MODE" "none" "ros" "ros2")"
   fi
   case "$ROS_MODE" in
@@ -339,6 +344,8 @@ if [[ "$NON_INTERACTIVE" != "yes" ]]; then
       ;;
   esac
 
+  echo "Selected ROS mode: $ROS_MODE"
+
   if [[ "$ROS_MODE" != "none" ]]; then
     if [[ "$ROS_MODE" == "ros2" ]]; then
       if ! contains_value "$ROS_PROFILE" "${ROS2_PROFILES[@]}"; then
@@ -364,6 +371,7 @@ if [[ "$NON_INTERACTIVE" != "yes" ]]; then
       fi
     fi
   fi
+  
 
 else
   # Validate options in non-interactive mode

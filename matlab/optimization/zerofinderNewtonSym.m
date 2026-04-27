@@ -26,9 +26,6 @@ function [xSol, feval, info] = zerofinderNewtonSym(F, x0, tol, maxIter)
 %% DEPENDENCIES
 % MATLAB Symbolic Toolbox
 % -------------------------------------------------------------------------------------------------------------
-%% Future upgrades
-% 1) Extension to handle input function from text
-% -------------------------------------------------------------------------------------------------------------
 %% Function code
 % Convert function handle to symbolic if needed
 nDims = size(x0, 1);

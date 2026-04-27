@@ -29,10 +29,6 @@ end
 %% DEPENDENCIES
 % [-]
 % -------------------------------------------------------------------------------------------------------------
-%% Future upgrades
-% [-]
-% -------------------------------------------------------------------------------------------------------------
-
 if coder.target('MATLAB') || coder.target("MEX")
     % Asserts
 
@@ -101,9 +97,6 @@ else
     % TODO TBD, not sure this makes any sense in MATLAB tbh
     return
 end
-
-
-
 
 end
 
