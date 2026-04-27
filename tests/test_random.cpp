@@ -1,7 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/catch_approx.hpp>
 
-#include <mathcore/random/scatter.h>
+#include <mathcore/random/vector_sampling.h>
 
 TEST_CASE("scatter_vector3_returns_mean_when_stddev_is_non_positive", "[random]")
 {

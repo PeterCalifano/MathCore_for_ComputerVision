@@ -2,7 +2,7 @@
 #include <catch2/catch_approx.hpp>
 
 #include <mathcore/linalg/skew_symmetric.h>
-#include <mathcore/random/scatter.h>
+#include <mathcore/random/vector_sampling.h>
 #include <mathcore/rotations/quaternion.h>
 
 namespace
