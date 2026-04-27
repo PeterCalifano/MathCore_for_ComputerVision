@@ -102,6 +102,31 @@ classdef testCRigidBodyDynamicsIntegrator < matlab.unittest.TestCase
             testCase.verifySize(dOmegaSeq, [3 numel(dTimegrid)]);
         end
 
+        function testIntegrateSupportsLieEulerAndRK4ConstantRate(testCase)
+            objIntegrator = CRigidBodyDynamicsIntegrator(eye(3), CQuatKinematicsIntegrator());
+
+            dTimegrid = 0:0.1:1.0;
+            dQuat0 = [1;0;0;0];
+            dOmega0 = [0;0;pi];
+            varTorque = zeros(3,1);
+            expectedQuat = [cos(pi/2); 0; 0; sin(pi/2)];
+            cellMethods = {'lie_euler', 'rk4'};
+
+            for ui32Idx = 1:numel(cellMethods)
+                [dQuatSeq, dOmegaSeq] = objIntegrator.integrate(dTimegrid, ...
+                                                                 dQuat0, ...
+                                                                 dOmega0, ...
+                                                                 varTorque, ...
+                                                                 0.1, ...
+                                                                 cellMethods{ui32Idx}, ...
+                                                                 true, ...
+                                                                 1.0);
+
+                testCase.verifyEqual(dOmegaSeq, repmat(dOmega0, 1, numel(dTimegrid)), 'AbsTol', 1e-12);
+                testCase.verifyEqual(dQuatSeq(:,end), expectedQuat, 'AbsTol', 1e-5);
+            end
+        end
+
         function testIntegrateUsesActualPartialInternalStep(testCase)
             objIntegrator = CRigidBodyDynamicsIntegrator(eye(3), CQuatKinematicsIntegrator());
 
@@ -183,8 +208,6 @@ classdef testCRigidBodyDynamicsIntegrator < matlab.unittest.TestCase
         end
 
         function testConstantTorqueNonZeroInitialRate(testCase)
-
-            % TODO
 
             % With constant torque, angular momentum must not be constant
             I = diag([2,2,2]);

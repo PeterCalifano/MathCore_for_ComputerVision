@@ -39,8 +39,6 @@ classdef CRigidBodyDynamicsIntegrator < handle & matlab.mixin.Copyable
                 dDefaultMaxDeltaT       (1,1) double {mustBeScalarOrEmpty, mustBeGreaterThanOrEqual(dDefaultMaxDeltaT, 0.0)} = 1.0;
             end 
 
-            % TODO implement integration step from t0 to tf
-            % Preliminary checks
             bDeduceDeltaT = dDeltaT == 0.0;
             dT0 = dTimegrid(1);
             dTf = dTimegrid(end);
@@ -61,15 +59,15 @@ classdef CRigidBodyDynamicsIntegrator < handle & matlab.mixin.Copyable
             % Select implementation of step
             switch coder.const(enumMethod)
 
-                case 'rk4_rkmk4'
-                    % [dQuatOut, dOmegaOut]
+                case {'lie_euler', 'rk4', 'rk4_rkmk4'}
                     fcnIntegrStep = @(dTimestamp, dQuat0, dOmega0, dStepSize, varTorque) CRigidBodyDynamicsIntegrator.integrateStep_(dTimestamp, ...
                                                                                                                     self.dInertiaMatrix, ...
                                                                                                                     dQuat0, ...
                                                                                                                     dOmega0, ...
                                                                                                                     dStepSize, ...
                                                                                                                     varTorque, ...
-                                                                                                                    bDecoupledKinoDynamics);
+                                                                                                                    bDecoupledKinoDynamics, ...
+                                                                                                                    enumMethod);
                 otherwise
                     error('Unsupported rigid-body integration method: %s', enumMethod);
             end
@@ -159,7 +157,8 @@ classdef CRigidBodyDynamicsIntegrator < handle & matlab.mixin.Copyable
                                                         dOmega0, ...
                                                         dDeltaT, ...
                                                         varTorque, ...
-                                                        bDecoupledKinoDynamics) %#codegen
+                                                        bDecoupledKinoDynamics, ...
+                                                        enumMethod) %#codegen
             arguments
                 dTimestamp              (1,1) double {mustBeGreaterThanOrEqual(dTimestamp, 0.0)}
                 dInertiaMatrix          (3,3) double {mustBeNumeric}
@@ -168,9 +167,9 @@ classdef CRigidBodyDynamicsIntegrator < handle & matlab.mixin.Copyable
                 dDeltaT                 (1,1) double {mustBePositive}
                 varTorque               {mustBeA(varTorque, ["function_handle", "double"])} = zeros(3,1)
                 bDecoupledKinoDynamics  (1,1) logical {coder.mustBeConst} = true % True if torque does not depend on attitude
+                enumMethod              (1,:) char {coder.mustBeConst, mustBeMember(enumMethod, {'lie_euler', 'rk4_rkmk4', 'rk4'})} = 'rk4_rkmk4'
             end
             % Combined integration step (decoupled or coupled)
-            % persistent fcnEvalOmegaRHS 
 
             if coder.const(isa(varTorque, "function_handle"))
                 dvTmpTorque_ = varTorque;
@@ -178,27 +177,78 @@ classdef CRigidBodyDynamicsIntegrator < handle & matlab.mixin.Copyable
                 dvTmpTorque_ = @(dTstamp, dOmega, dQuat0) varTorque; % Constant, defaults to zero
             end
 
-            % if isempty(fcnEvalOmegaRHS)
-            % TODO how to improve need of declaring function handle here? persistent seems a bad idea. There
-            % seems no way of avoiding this method to be a class method...
             assert(all(diag(dInertiaMatrix) > 0.0), 'ERROR: invalid inertia matrix. Diagonal cannot be non-positive.')
             fcnEvalOmegaRHS = @(dTstamp, dOmega, dQuat0) CRigidBodyDynamicsIntegrator.EvalRHS_AngAccel_(dInertiaMatrix, ...
                                                                                                        dOmega, ...
                                                                                                        dvTmpTorque_(dTstamp, dOmega, dQuat0));
-            % end
-
 
             if coder.const(bDecoupledKinoDynamics)
-                
-                % Integrate RK4 step for angular velocity
-                [dOmegaOut, dQuatOut] = CRigidBodyDynamicsIntegrator.IntegrStep_RK4_RKMK4(dOmega0, ...
+                switch coder.const(enumMethod)
+                    case 'lie_euler'
+                        % Lie group Euler step: integrate angular velocity with explicit Euler and update quaternion with Lie group Euler step using the initial angular velocity sample.
+                        [dOmegaOut, dQuatOut] = CRigidBodyDynamicsIntegrator.IntegrStep_LieEuler(dOmega0, ...
+                                                                                                  dQuat0, ...
+                                                                                                  fcnEvalOmegaRHS, ...
+                                                                                                  dTimestamp, ...
+                                                                                                  dDeltaT);
+                    case 'rk4'
+                        % RK4 step: integrate angular velocity with RK4 and update quaternion with RK4 using the same angular velocity samples at the stages.
+                        [dOmegaOut, dQuatOut] = CRigidBodyDynamicsIntegrator.IntegrStep_RK4(dOmega0, ...
                                                                                             dQuat0, ...
                                                                                             fcnEvalOmegaRHS, ...
                                                                                             dTimestamp, ...
                                                                                             dDeltaT);
+                    case 'rk4_rkmk4'
+                        % RK4-RKMK4 step: integrate angular velocity with RK4 and update quaternion with RKMK4 using the same angular velocity samples at the stages.
+                        [dOmegaOut, dQuatOut] = CRigidBodyDynamicsIntegrator.IntegrStep_RK4_RKMK4(dOmega0, ...
+                                                                                                  dQuat0, ...
+                                                                                                  fcnEvalOmegaRHS, ...
+                                                                                                  dTimestamp, ...
+                                                                                                  dDeltaT);
+                end
             else
                 error('Not yet implemented')
             end
+        end
+
+        function [dNextOmega, dNextQuat] = IntegrStep_LieEuler(dOmega0, ...
+                                                               dQuat0, ...
+                                                               fcnEvalOmegaRHS, ...
+                                                               dTstamp, ...
+                                                               dDeltaTime)
+            arguments
+                dOmega0         (3,1) double {mustBeFinite}
+                dQuat0          (4,1) double {mustBeFinite}
+                fcnEvalOmegaRHS function_handle % Expected signature: fcnEvalOmegaRHS(dTstamp, dOmega, dQuat0)
+                dTstamp         (1,1) double {mustBeFinite}
+                dDeltaTime      (1,1) double {mustBePositive}
+            end
+
+            dTmpRHS = fcnEvalOmegaRHS(dTstamp, dOmega0, dQuat0);
+            dNextOmega = dOmega0 + dDeltaTime * dTmpRHS;
+            fcnOmega = @(~) dOmega0;
+            dNextQuat = CQuatKinematicsIntegrator.IntegrStep_LieGroupEuler(dQuat0, fcnOmega, dTstamp, dDeltaTime);
+        end
+
+        function [dNextOmega, dNextQuat, dOmegaStagesVals, dStagesTimes] = IntegrStep_RK4(dOmega0, ...
+                                                                                         dQuat0, ...
+                                                                                         fcnEvalOmegaRHS, ...
+                                                                                         dTstamp, ...
+                                                                                         dDeltaTime)
+            arguments
+                dOmega0         (3,1) double {mustBeFinite}
+                dQuat0          (4,1) double {mustBeFinite}
+                fcnEvalOmegaRHS function_handle % Expected signature: fcnEvalOmegaRHS(dTstamp, dOmega, dQuat0)
+                dTstamp         (1,1) double {mustBeFinite}
+                dDeltaTime      (1,1) double {mustBePositive}
+            end
+
+            [dNextOmega, dOmegaStagesVals, dStagesTimes] = CRigidBodyDynamicsIntegrator.IntegrStep_RK4_OmegaStages_(dOmega0, ...
+                                                                                                                     dQuat0, ...
+                                                                                                                     fcnEvalOmegaRHS, ...
+                                                                                                                     dTstamp, ...
+                                                                                                                     dDeltaTime);
+            dNextQuat = CQuatKinematicsIntegrator.IntegrStep_RK4_Samples(dQuat0, dOmegaStagesVals, dDeltaTime);
         end
 
         function [dNextOmega, dNextQuat, dOmegaStagesVals, dStagesTimes] = IntegrStep_RK4_RKMK4(dOmega0, ...
@@ -222,6 +272,29 @@ classdef CRigidBodyDynamicsIntegrator < handle & matlab.mixin.Copyable
             %         0    0    1    0];
             %    b = [1/6; 1/3; 1/3; 1/6];
             %    c = [0; 1/2; 1/2; 1];
+
+            [dNextOmega, dOmegaStagesVals, dStagesTimes] = CRigidBodyDynamicsIntegrator.IntegrStep_RK4_OmegaStages_(dOmega0, ...
+                                                                                                                     dQuat0, ...
+                                                                                                                     fcnEvalOmegaRHS, ...
+                                                                                                                     dTstamp, ...
+                                                                                                                     dDeltaTime);
+            dNextQuat = CQuatKinematicsIntegrator.IntegrStep_RKMK4_Samples(dQuat0, dOmegaStagesVals, dDeltaTime);
+        end
+    end
+
+    methods (Static, Access = protected)
+        function [dNextOmega, dOmegaStagesVals, dStagesTimes] = IntegrStep_RK4_OmegaStages_(dOmega0, ...
+                                                                                           dQuat0, ...
+                                                                                           fcnEvalOmegaRHS, ...
+                                                                                           dTstamp, ...
+                                                                                           dDeltaTime)
+            arguments
+                dOmega0         (3,1) double {mustBeFinite}
+                dQuat0          (4,1) double {mustBeFinite}
+                fcnEvalOmegaRHS function_handle
+                dTstamp         (1,1) double {mustBeFinite}
+                dDeltaTime      (1,1) double {mustBePositive}
+            end
 
             dStagesTimes = dTstamp + [0.0, 0.5 * dDeltaTime, 0.5 * dDeltaTime, dDeltaTime];
 
@@ -247,8 +320,8 @@ classdef CRigidBodyDynamicsIntegrator < handle & matlab.mixin.Copyable
             dOmegaStagesVals = [dOmega0, dOmega_K1, dOmega_K2, dOmega_K3];
 
             % Update solution
-            dNextOmega = dOmega0 + dDeltaTime * (dTmpRHS_K1 + 2*dTmpRHS_K2 + 2*dTmpRHS_K3 + dTmpRHS_K4)/6;
-            dNextQuat = CQuatKinematicsIntegrator.IntegrStep_RKMK4_Samples(dQuat0, dOmegaStagesVals, dDeltaTime);
+            dOneOverSix = coder.const(1/6);
+            dNextOmega =  dOmega0 + dDeltaTime * dOneOverSix * (dTmpRHS_K1 + 2*dTmpRHS_K2 + 2*dTmpRHS_K3 + dTmpRHS_K4);
         end
     end
 end
