@@ -47,8 +47,9 @@ namespace mathcore
         // METHODS
 
         /// Fits the Chebyshev coefficient matrix for the currently configured domain.
+        void fitCoefficientMatrix(const matrix_type &data_matrix)
         {
-            void fitCoefficientMatrix(const matrix_type &data_matrix) this -> checkDataMatrixValidity(data_matrix);
+            this->checkDataMatrixValidity(data_matrix);
 
             const auto scaled_domain = base_type::scaleInterpolationDomain(this->interpolation_domain_);
             this->coefficient_matrix_.resize(this->num_components_, this->polynomial_degree_ + 1);
