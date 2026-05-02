@@ -175,6 +175,54 @@ classdef testCQuatKinematicsIntegrator < matlab.unittest.TestCase
             testCase.verifyEqual(qSeq(:,1), q0, 'AbsTol', testCase.Tolerance);
         end
 
+        function testRKMK4FunctionOmegaNonCommutingMatchesOdeReference(testCase)
+            q0 = [1;0;0;0];
+            omega = @(dT) [0.35 + 0.08 * sin(0.9 * dT); ...
+                          -0.22 + 0.06 * cos(1.3 * dT); ...
+                           0.17 + 0.05 * sin(1.7 * dT)];
+            tgrid = 0:0.2:4.0;
+
+            [~, dTimegridOut, qSeq] = testCase.Integr.integrate(q0, omega, tgrid, 'rkmk4', 0.02);
+            qRefSeq = testCQuatKinematicsIntegrator.referenceQuatOde_(q0, omega, tgrid);
+
+            dQuatErr = testCQuatKinematicsIntegrator.quatSequenceError_(qSeq, qRefSeq);
+            testCase.verifyLessThan(max(dQuatErr), 5e-6);
+            testCase.verifyEqual(dTimegridOut, tgrid, 'AbsTol', 1e-12);
+        end
+
+        function testRKMK4TabulatedOmegaNonCommutingMatchesOdeReference(testCase)
+            q0 = [1;0;0;0];
+            tgrid = 0:0.4:4.0;
+            dProfileTimes = 0:0.05:4.0;
+            dOmegaProfile = [0.35 + 0.08 * sin(0.9 * dProfileTimes); ...
+                            -0.22 + 0.06 * cos(1.3 * dProfileTimes); ...
+                             0.17 + 0.05 * sin(1.7 * dProfileTimes)];
+            cellInterpMethods = {'linear', 'spline'};
+
+            for ui32Idx = 1:numel(cellInterpMethods)
+                enumInterpMethod = cellInterpMethods{ui32Idx};
+                objOmegaInterp = griddedInterpolant(dProfileTimes(:), ...
+                                                    transpose(dOmegaProfile), ...
+                                                    enumInterpMethod, ...
+                                                    'none');
+                omegaReference = @(dT) transpose(objOmegaInterp(dT));
+
+                [~, dTimegridOut, qSeq] = testCase.Integr.integrate(q0, ...
+                                                                    dOmegaProfile, ...
+                                                                    tgrid, ...
+                                                                    'rkmk4', ...
+                                                                    0.02, ...
+                                                                    1.0, ...
+                                                                    dProfileTimes, ...
+                                                                    enumInterpMethod);
+                qRefSeq = testCQuatKinematicsIntegrator.referenceQuatOde_(q0, omegaReference, tgrid);
+
+                dQuatErr = testCQuatKinematicsIntegrator.quatSequenceError_(qSeq, qRefSeq);
+                testCase.verifyLessThan(max(dQuatErr), 5e-6);
+                testCase.verifyEqual(dTimegridOut, tgrid, 'AbsTol', 1e-12);
+            end
+        end
+
         function testOmegaFcnHandleRKMK4(testCase)
             
             % Constant rotation about Z at pi rad/s for 1 second
@@ -193,5 +241,31 @@ classdef testCQuatKinematicsIntegrator < matlab.unittest.TestCase
 
         end
 
+    end
+
+    methods (Static, Access = private)
+        function qRefSeq = referenceQuatOde_(q0, omegaFcn, tgrid)
+            stOptions = odeset('RelTol', 1e-12, 'AbsTol', 1e-14);
+            [~, dStateSeq] = ode113(@(dTstamp, q) testCQuatKinematicsIntegrator.quatRhs_(dTstamp, q, omegaFcn), ...
+                                    tgrid, ...
+                                    q0, ...
+                                    stOptions);
+            qRefSeq = CQuatKinematicsIntegrator.NormalizeSeq(transpose(dStateSeq));
+        end
+
+        function qDot = quatRhs_(dTstamp, q, omegaFcn)
+            q = q / norm(q);
+            dOmega = reshape(omegaFcn(dTstamp), 3, 1);
+            dOmegaMat = [0.0,       -dOmega(1), -dOmega(2), -dOmega(3); ...
+                         dOmega(1),  0.0,        dOmega(3), -dOmega(2); ...
+                         dOmega(2), -dOmega(3),  0.0,        dOmega(1); ...
+                         dOmega(3),  dOmega(2), -dOmega(1),  0.0];
+            qDot = 0.5 * dOmegaMat * q;
+        end
+
+        function dQuatErr = quatSequenceError_(qSeq, qRefSeq)
+            dQuatErr = min(vecnorm(qSeq - qRefSeq, 2, 1), ...
+                           vecnorm(qSeq + qRefSeq, 2, 1));
+        end
     end
 end

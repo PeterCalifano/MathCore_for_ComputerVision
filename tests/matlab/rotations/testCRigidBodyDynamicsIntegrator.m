@@ -266,6 +266,35 @@ classdef testCRigidBodyDynamicsIntegrator < matlab.unittest.TestCase
             end
         end
 
+        function testRk4Rkmk4MatchesOdeReferenceForChangingBodyRate(testCase)
+            dInertia = diag([1.5, 2.0, 3.5]);
+            objIntegrator = CRigidBodyDynamicsIntegrator(dInertia, CQuatKinematicsIntegrator());
+
+            dTimegrid = 0:1:60;
+            dQuat0 = [1;0;0;0];
+            dOmega0 = [0.02; 0.01; 0.2];
+            varTorque = zeros(3,1);
+
+            [dQuatSeqRKMK4, dOmegaSeqRKMK4] = objIntegrator.integrate(dTimegrid, ...
+                                                                      dQuat0, ...
+                                                                      dOmega0, ...
+                                                                      varTorque, ...
+                                                                      0.1, ...
+                                                                      'rk4_rkmk4', ...
+                                                                      true, ...
+                                                                      1.0);
+
+            [dQuatRefSeq, dOmegaRefSeq] = testCRigidBodyDynamicsIntegrator.referenceRigidBodyOde_(dTimegrid, ...
+                                                                                                  dQuat0, ...
+                                                                                                  dOmega0, ...
+                                                                                                  dInertia);
+            dQuatErr = testCRigidBodyDynamicsIntegrator.quatSequenceError_(dQuatSeqRKMK4, dQuatRefSeq);
+            dOmegaErr = vecnorm(dOmegaSeqRKMK4 - dOmegaRefSeq, 2, 1);
+
+            testCase.verifyLessThan(max(dQuatErr), 2e-5);
+            testCase.verifyLessThan(max(dOmegaErr), 5e-8);
+        end
+
         function testTorqueFreeSymmetricTop(testCase)
 
             % Torque-free motion for symmetric top (I1=I2 != I3)
@@ -306,5 +335,36 @@ classdef testCRigidBodyDynamicsIntegrator < matlab.unittest.TestCase
             end
         end
 
+    end
+
+    methods (Static, Access = private)
+        function [dQuatRefSeq, dOmegaRefSeq] = referenceRigidBodyOde_(dTimegrid, dQuat0, dOmega0, dInertia)
+            stOptions = odeset('RelTol', 1e-12, 'AbsTol', 1e-14);
+            [~, dStateSeq] = ode113(@(dTstamp, dState) testCRigidBodyDynamicsIntegrator.rigidBodyRhs_(dTstamp, dState, dInertia), ...
+                                    dTimegrid, ...
+                                    [dQuat0; dOmega0], ...
+                                    stOptions);
+            dQuatRefSeq = CQuatKinematicsIntegrator.NormalizeSeq(transpose(dStateSeq(:,1:4)));
+            dOmegaRefSeq = transpose(dStateSeq(:,5:7));
+        end
+
+        function dStateDot = rigidBodyRhs_(~, dState, dInertia)
+            dQuat = dState(1:4);
+            dQuat = dQuat / norm(dQuat);
+            dOmega = dState(5:7);
+
+            dOmegaMat = [0.0,       -dOmega(1), -dOmega(2), -dOmega(3); ...
+                         dOmega(1),  0.0,        dOmega(3), -dOmega(2); ...
+                         dOmega(2), -dOmega(3),  0.0,        dOmega(1); ...
+                         dOmega(3),  dOmega(2), -dOmega(1),  0.0];
+            dQuatDot = 0.5 * dOmegaMat * dQuat;
+            dOmegaDot = CRigidBodyDynamicsIntegrator.EvalRHS_AngAccel_(dInertia, dOmega, zeros(3,1));
+            dStateDot = [dQuatDot; dOmegaDot];
+        end
+
+        function dQuatErr = quatSequenceError_(dQuatSeq, dQuatRefSeq)
+            dQuatErr = min(vecnorm(dQuatSeq - dQuatRefSeq, 2, 1), ...
+                           vecnorm(dQuatSeq + dQuatRefSeq, 2, 1));
+        end
     end
 end
