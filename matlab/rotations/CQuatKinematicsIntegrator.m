@@ -327,8 +327,9 @@ classdef CQuatKinematicsIntegrator < handle & matlab.mixin.Copyable
             
             % Compute delta quaternion over the time interval
             dTmpDeltaAngle = 0.5 * reshape(fcnEvalOmegaAngVel(dTstamp), 3, 1) * dDeltaTime;
-            % Update solution
-            dQuatOut = CQuatKinematicsIntegrator.QuatSeqCross( CQuatKinematicsIntegrator.expMap(dTmpDeltaAngle), dQuat0 );
+
+            % Use qdot = 0.5 * Omega(omega) * q, equivalent to right-applying the incremental quaternion.
+            dQuatOut = CQuatKinematicsIntegrator.QuatSeqCross(dQuat0, CQuatKinematicsIntegrator.expMap(dTmpDeltaAngle));
 
         end
 
@@ -389,17 +390,37 @@ classdef CQuatKinematicsIntegrator < handle & matlab.mixin.Copyable
                 dDeltaTime  (1,1) double {mustBePositive}
             end
 
-            % RKMK4 method: compute on-manifold quaternion increment from a combination of angular velocity samples at the RK4 stages.
-            dInvRightJacPsi = 0.5; % Inverse right jacobian for quaternion kinematics linearized at identity
-            dvTmpK1 = dInvRightJacPsi * dOmegaStages(:,1);
-            dvTmpK2 = dInvRightJacPsi * dOmegaStages(:,2);
-            dvTmpK3 = dInvRightJacPsi * dOmegaStages(:,3);
-            dvTmpK4 = dInvRightJacPsi * dOmegaStages(:,4);
+            % Quaternion kinematics maps omega to Lie algebra rate xi = 0.5 * omega.
+            dXiStages = 0.5 * dOmegaStages;
+            dvTmpK1 = dDeltaTime * dXiStages(:,1);
 
-            % Compute increment in the Lie algebra and map to the group using ExpMap
-            dTmpOmegaDelta = (dvTmpK1 + 2*dvTmpK2 + 2*dvTmpK3 + dvTmpK4) * (dDeltaTime/6);
-            dQuatOut = CQuatKinematicsIntegrator.QuatSeqCross(CQuatKinematicsIntegrator.expMap(dTmpOmegaDelta), dQuat0);
+            % RKMK stages live in the Lie algebra. For non-commuting rotations, later
+            % stage vector fields must be pulled back with dexp^-1 before RK weighting.
+            dvTmpK2 = dDeltaTime * CQuatKinematicsIntegrator.GetDexpInvPureQuat_(0.5 * dvTmpK1, dXiStages(:,2));
+            dvTmpK3 = dDeltaTime * CQuatKinematicsIntegrator.GetDexpInvPureQuat_(0.5 * dvTmpK2, dXiStages(:,3));
+            dvTmpK4 = dDeltaTime * CQuatKinematicsIntegrator.GetDexpInvPureQuat_(dvTmpK3, dXiStages(:,4));
 
+            dTmpOmegaDelta = (dvTmpK1 + 2*dvTmpK2 + 2*dvTmpK3 + dvTmpK4) / 6;
+            % Same right-update convention as IntegrStep_LieGroupEuler and IntegrStep_RK4.
+            dQuatOut = CQuatKinematicsIntegrator.QuatSeqCross(dQuat0, CQuatKinematicsIntegrator.expMap(dTmpOmegaDelta));
+
+        end
+    end
+
+    methods (Static, Access = protected)
+        function dOut = GetDexpInvPureQuat_(dU, dV)
+            arguments
+                dU (3,1) double {mustBeFinite}
+                dV (3,1) double {mustBeFinite}
+            end
+
+            % Truncated dexp^-1_u(v) = v - 1/2 [u,v] + 1/12 [u,[u,v]].
+            % For pure Hamilton quaternions, [u,v] = uv - vu = 2 * cross(u,v).
+            % If stage rotations commute, cross terms vanish and this returns dV.
+            dBracketUV = 2.0 * cross(dU, dV);
+            dBracketUUV = 2.0 * cross(dU, dBracketUV);
+            % Note: 1/12 = 0.083333333333333
+            dOut = dV - 0.5 * dBracketUV + (0.083333333333333) * dBracketUUV;
         end
     end
 end
