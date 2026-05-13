@@ -103,7 +103,7 @@ dChbvCoeffs(1:end) = dChbvCoeffs_matrixT(:);
 
 if bENABLE_FIT_CHECK == true
         [strfitStats] = checkFitChbvPoly(ui32PolyDeg, dInterpDomain, dChbvCoeffs, ...
-            dDataMatrix, dDomainLB, dDomainUB, false, [], true, dPercRelErrorTol);
+            dDataMatrix, dDomainLB, dDomainUB, false, [], bEnableErrorThrow, dPercRelErrorTol);
 else
     strfitStats = struct();
 end
