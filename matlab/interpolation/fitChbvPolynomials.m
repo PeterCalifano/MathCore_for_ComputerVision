@@ -13,8 +13,8 @@ arguments
     dDomainLB           (1,1) double 
     dDomainUB           (1,1) double  
     bENABLE_FIT_CHECK   (1,1) logical = true
-    bEnableErrorThrow   (1,1) logical {islogical, isscalar} = true
-    dPercRelErrorTol    (1,1) double {mustBeNumeric, isscalar} = 0.1
+    bEnableErrorThrow   (1,1) logical = true
+    dPercRelErrorTol    (1,1) double {mustBeNumeric} = 0.1
 end
 %% PROTOTYPE
 % [dChbvCoeffs, dScaledInterpDomain, strfitStats] = fitChbvPolynomials(ui32PolyDeg, ...
