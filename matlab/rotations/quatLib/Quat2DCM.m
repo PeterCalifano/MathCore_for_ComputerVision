@@ -1,4 +1,4 @@
-function dDCM = Quat2DCM(dQuatRot, bIS_VSRPplus) %#codegen
+function [dDCM, bValidity] = Quat2DCM(dQuatRot, bIS_VSRPplus) %#codegen
 arguments
     dQuatRot     (4,1) double
     bIS_VSRPplus (1,1) logical = false
@@ -32,16 +32,13 @@ end
 % 01-09-2023    Pietro Califano     Coded from reference. Validated.
 % 27-04-2024    Pietro Califano     Modified convention of quaternion.
 % 25-09-2025    Pietro Califano     Minor revision (update validations of args)
+% 08-06-2026    Pietro Califano     Improve validation of DCM and remove previous checks
 % -------------------------------------------------------------------------------------------------------------
 %% DEPENDENCIES
 % [-]
 % -------------------------------------------------------------------------------------------------------------
 
 %% Function code
-
-if coder.target('MATLAB') || coder.target('MEX')
-    assert( all(abs(dQuatRot) <= 1.0 + eps, 'all'), 'ERROR: invalid quaternion array. Must have a unitary norm!')
-end
 
 % DCM initialization
 dDCM = coder.nullcopy(zeros(3,3));
@@ -74,8 +71,7 @@ dDCM(1,3) = 2*(qv1*qv3 - qv2*qs);
 dDCM(2,3) = 2*(qv2*qv3 + qv1*qs);
 dDCM(3,3) = qs^2 - qv1^2 - qv2^2 + qv3^2;
 
-if coder.target('MATLAB') || coder.target('MEX')
-    assert( all( (abs(dDCM) - 1.0) <= 1E-6, 'all'), 'ERROR: invalid DCM. Must have a unitary norm!')
-end
+% Check validity of matrix
+bValidity = ValidateDCM(dDCM);
 
 end
