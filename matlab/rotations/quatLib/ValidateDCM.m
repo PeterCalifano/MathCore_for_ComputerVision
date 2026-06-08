@@ -36,7 +36,7 @@ bHasUnitNorm = abs(dot(C1,C1) - 1.0) <= dTol && ...
     abs(dot(C2,C2) - 1.0) <= dTol && ...
     abs(dot(C3,C3) - 1.0) <= dTol;
 
-bIsOrthoRightHanded = norm(cross(C1,C2) - dC3) <= dTol;
+bIsOrthoRightHanded = norm(cross(C1,C2) - C3) <= dTol;
 
 bValidity = bIsFinite && bHasUnitNorm && bIsOrthoRightHanded;
 
