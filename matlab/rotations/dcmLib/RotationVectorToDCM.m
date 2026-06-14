@@ -1,7 +1,7 @@
 function dDCM = RotationVectorToDCM(dRotationVector, dSmallAngleThreshold) %#codegen
 arguments
     dRotationVector        (:,1) {mustBeNumeric}
-    dSmallAngleThreshold   (1,1) {mustBeNumeric, mustBeNonnegative, coder.mustBeConst} = 1e-3 % [rad]
+    dSmallAngleThreshold   (1,1) {mustBeNumeric, mustBeNonnegative, coder.mustBeConst} = 1e-4 % [rad]
 end
 
 %% PROTOTYPE
