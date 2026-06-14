@@ -1,31 +1,46 @@
-close all
-clear
-clc
+function tests = testRodriguezRotation
+tests = functiontests(localfunctions);
+end
 
+function setupOnce(testCase)
+testFolder = fileparts(mfilename('fullpath'));
+rootFolder = fullfile(testFolder, '..', '..', '..');
+matlabFolder = fullfile(rootFolder, 'matlab');
+rotationsFolder = fullfile(matlabFolder, 'rotations');
+testCase.TestData.OriginalPath = path;
+addpath(testFolder, matlabFolder, rotationsFolder);
+end
 
-% TEST SETUP
+function teardownOnce(testCase)
+path(testCase.TestData.OriginalPath);
+end
+
+function testRot3dVecAboutDirFullVector(testCase)
 dTestVector = [1, 1, 0;
                0, 0, 1;
                0, 0, 0];
-
 dDirections = [0, 0, 0;
                0, 0, 0;
                1, 1, 1];
-
 dAngles = deg2rad([90, 0, -90]);
 
-%% test_Rot3dVecAboutDir_fullVect
 dRotateVectors = Rot3dVecAboutDir(dDirections, dTestVector, dAngles);
 
-assertDifference(dRotateVectors(:, 1), [0;1;0], 1e-12);
-assertDifference(dRotateVectors(:, 2), [1;0;0], 1e-12);
-assertDifference(dRotateVectors(:, 3), [1;0;0], 1e-12);
+verifyEqual(testCase, dRotateVectors(:, 1), [0; 1; 0], "AbsTol", 1.0e-12);
+verifyEqual(testCase, dRotateVectors(:, 2), [1; 0; 0], "AbsTol", 1.0e-12);
+verifyEqual(testCase, dRotateVectors(:, 3), [1; 0; 0], "AbsTol", 1.0e-12);
+end
 
-%% test_Rot3dVecAboutDir_conveniency cases
+function testRot3dVecAboutDirConvenienceCases(testCase)
+dTestVector = [1, 1, 0;
+               0, 0, 1;
+               0, 0, 0];
+dDirection = [0; 0; 1];
 dAngles = deg2rad(90);
 
-dRotateVectors = Rot3dVecAboutDir(dDirections(:,1), dTestVector, dAngles);
+dRotateVectors = Rot3dVecAboutDir(dDirection, dTestVector, dAngles);
 
-assertDifference(dRotateVectors(:, 1), [0;1;0], 1e-12);
-assertDifference(dRotateVectors(:, 2), [0;1;0], 1e-12);
-assertDifference(dRotateVectors(:, 3), [-1;0;0], 1e-12);
+verifyEqual(testCase, dRotateVectors(:, 1), [0; 1; 0], "AbsTol", 1.0e-12);
+verifyEqual(testCase, dRotateVectors(:, 2), [0; 1; 0], "AbsTol", 1.0e-12);
+verifyEqual(testCase, dRotateVectors(:, 3), [-1; 0; 0], "AbsTol", 1.0e-12);
+end
