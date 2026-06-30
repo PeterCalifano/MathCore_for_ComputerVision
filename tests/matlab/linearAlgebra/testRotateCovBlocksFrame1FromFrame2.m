@@ -68,7 +68,8 @@ function testVectorizedFullRotationDefaultMask(testCase)
 
 dCovMatrix_Frame1 = RotateCovBlocksFrame1FromFrame2(dCovMatrix_Frame2, ...
                                                     dRot3_Frame1FromFrame2, ...
-                                                    'bVectorizeRotation', true);
+                                                    [true, true], ...
+                                                    true);
 
 expected = zeros(size(dCovMatrix_Frame2));
 for page = 1:size(dCovMatrix_Frame2, 3)

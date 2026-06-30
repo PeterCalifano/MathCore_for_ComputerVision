@@ -161,7 +161,9 @@ else
     idSeq = 2:Nq;
 end
 
-DefaultPlotOpts();
+if exist('DefaultPlotOpts', 'file') == 2
+    DefaultPlotOpts();
+end
 hold on;
 
 % Plot trajectory

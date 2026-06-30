@@ -1,41 +1,38 @@
-close all
-clear
-clc
+function tests = testPlotAttitude
+tests = functiontests(localfunctions);
+end
 
+function setupOnce(testCase)
+testFolder = fileparts(mfilename('fullpath'));
+rootFolder = fullfile(testFolder, '..', '..', '..');
+matlabFolder = fullfile(rootFolder, 'matlab');
+rotationsFolder = fullfile(matlabFolder, 'rotations');
+quatFolder = fullfile(rotationsFolder, 'quatLib');
+testCase.TestData.OriginalPath = path;
+testCase.TestData.DefaultFigureVisible = get(groot, 'DefaultFigureVisible');
+addpath(testFolder, matlabFolder, rotationsFolder, quatFolder);
+set(groot, 'DefaultFigureVisible', 'off');
+end
 
-%% Plotting routines test script
+function teardownOnce(testCase)
+close all force;
+set(groot, 'DefaultFigureVisible', testCase.TestData.DefaultFigureVisible);
+path(testCase.TestData.OriginalPath);
+end
 
-addpath(genpath("S:/TestInputData"));
-addpath(genpath("./TestScripts"));
-addpath(genpath("./CREmodules"));
-addpath(genpath("./AnalyticalUKF"))
+function testPlotAttitudeQuatSyntheticSequence(testCase)
+dQuatSeq = [1.0, cos(pi/4), cos(pi/4);
+            0.0, 0.0,       0.0;
+            0.0, 0.0,       0.0;
+            0.0, sin(pi/4), -sin(pi/4)];
+dOriginPos = zeros(3, size(dQuatSeq, 2));
 
-scenarioData = 'exp';
-[dataPALT, dataDKE, dataTNAV, dataADCS, dataGNC, dataIP, dataFDIR, dataEPH] = loadTestData(scenarioData);
-plotData = 0; % Enables plot of state wrt D2 (RefData)
+[fig, dDCM_Target2Fixed] = PlotAttitudeQuat(dQuatSeq, dOriginPos, false, false, false, 0.0);
+cleanupObj = onCleanup(@() close(fig)); %#ok<NASGU>
 
-% Load data
-getParamsRefData;
-
-%% TEST
-testNumber = 0;
-
-switch testNumber
-    case 0
-
-        Nlast = 120000;
-        % Plot Attitude Quaternion
-%         [fig, o_dDCM_Target2Fixed] = plotAttitudeQuat(i_dQuatSeq, i_dOriginPos, i_bConvFlag, i_bPlotFrame)
-        i_dOriginPos = R_SC_True(:, 1:Nlast);
-%         i_dOriginPos = zeros(3, 1);
-        i_bConvFlag = 0;
-        i_bPlotFrame = false;
-        i_dQuatSeq = qCAMwrtIN_ref(:, 1:Nlast);
-
-        plotAttitudeQuat(i_dQuatSeq, i_dOriginPos, i_bConvFlag, i_bPlotFrame);
-
-    case 1
-
-
-
+verifyTrue(testCase, isgraphics(fig, 'figure'));
+verifySize(testCase, dDCM_Target2Fixed, [3, 3, size(dQuatSeq, 2)]);
+for idQuat = 1:size(dQuatSeq, 2)
+    verifyEqual(testCase, dDCM_Target2Fixed(:, :, idQuat), Quat2DCM(dQuatSeq(:, idQuat), false), "AbsTol", 1.0e-12);
+end
 end

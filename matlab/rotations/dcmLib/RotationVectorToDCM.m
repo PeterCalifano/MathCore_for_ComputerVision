@@ -15,7 +15,7 @@ end
 % -------------------------------------------------------------------------------------------------------------
 %% INPUT
 % dRotationVector: [3, 1] Rotation vector. Norm is the rotation angle [rad].
-% dSmallAngleThreshold: Scalar threshold for small angles (default: 1e-3 rad). For angles below this, a first-order approximation is used.
+% dSmallAngleThreshold: Scalar threshold for small angles (default: 1e-3 rad). For angles below this, Taylor-expanded Rodrigues coefficients are used.
 % -------------------------------------------------------------------------------------------------------------
 %% OUTPUT
 % dDCM: [3, 3] Direction cosine matrix associated with dRotationVector.
@@ -42,17 +42,21 @@ if dRotationAngle <= eps
     return
 end
 
-% For very small angles, use first-order approximation
+% Compute rotation angle and vector skew matrix
+dRotationAngleSq = dRotationAngle * dRotationAngle;
+dSkewRotationVector = skewSymm(dRotationVector);
+
 if dRotationAngle <= eps + coder.const(dSmallAngleThreshold)
-   dDCM = eye(3) + skewSymm(dRotationVector);
-   return
+    % First order approximation of Rodrigues' formula for small angles
+    dDCM = eye(3) + ...
+        (1.0 - dRotationAngleSq / 6.0 + dRotationAngleSq^2 / 120.0) * dSkewRotationVector + ...
+        (0.5 - dRotationAngleSq / 24.0 + dRotationAngleSq^2 / 720.0) * (dSkewRotationVector * dSkewRotationVector);
+    return
 end
 
 % Compute DCM using Rodrigues' rotation formula (exact exponential map on SO(3))
-dRotationAxis = dRotationVector / dRotationAngle;
-dSkewAxis = skewSymm(dRotationAxis);
-
-dDCM = eye(3) + sin(dRotationAngle) * dSkewAxis + ...
-    (1.0 - cos(dRotationAngle)) * (dSkewAxis * dSkewAxis);
+dDCM = eye(3) + ...
+    (sin(dRotationAngle) / dRotationAngle) * dSkewRotationVector + ...
+    ((1.0 - cos(dRotationAngle)) / dRotationAngleSq) * (dSkewRotationVector * dSkewRotationVector);
 
 end
