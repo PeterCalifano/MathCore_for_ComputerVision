@@ -10,11 +10,10 @@ assert(abs(norm(dUnitVector) - 1.0) < 1.0e-14);
 dUnitVectorDefault = NormalizeVector(dVector);
 assert(norm(dUnitVectorDefault - dUnitVector) < 1.0e-14);
 
-%% test near-zero vector failure
-bThrew = false;
-try
-    NormalizeVector([0.0; 0.0; 0.0], 1.0e-12);
-catch
-    bThrew = true;
-end
-assert(bThrew, 'NormalizeVector must fail for near-zero vectors.');
+%% test near-zero vector fallback
+lastwarn('', '');
+dZeroUnitVector = NormalizeVector([0.0; 0.0; 0.0], 1.0e-12);
+[~, charWarningId] = lastwarn;
+assert(norm(dZeroUnitVector) == 0.0);
+assert(strcmp(charWarningId, 'NormalizeVector:ZeroNorm'), ...
+       'NormalizeVector must warn when returning zero for near-zero vectors.');

@@ -4,10 +4,8 @@
       "name": "Linux_ARM64",
       "includePath": [
         "${workspaceFolder}/src",
-        "${workspaceFolder}/lib",
         "${workspaceFolder}/examples",
-        "${workspaceFolder}/tests",
-        "${workspaceFolder}/build/src"
+        "${workspaceFolder}/tests"
       ],
       "defines": [],
       "compilerPath": "/usr/bin/gcc",
@@ -15,10 +13,8 @@
       "browse": {
         "path": [
           "${workspaceFolder}/src",
-          "${workspaceFolder}/lib",
           "${workspaceFolder}/examples",
-          "${workspaceFolder}/tests",
-          "${workspaceFolder}/build/src"
+          "${workspaceFolder}/tests"
         ],
         "limitSymbolsToIncludedHeaders": true
       }
@@ -27,10 +23,8 @@
       "name": "Linux_AMD64",
       "includePath": [
         "${workspaceFolder}/src",
-        "${workspaceFolder}/lib",
         "${workspaceFolder}/examples",
-        "${workspaceFolder}/tests",
-        "${workspaceFolder}/build/src"
+        "${workspaceFolder}/tests"
       ],
       "defines": [],
       "compilerPath": "/usr/bin/gcc",
@@ -38,10 +32,8 @@
       "browse": {
         "path": [
           "${workspaceFolder}/src",
-          "${workspaceFolder}/lib",
           "${workspaceFolder}/examples",
-          "${workspaceFolder}/tests",
-          "${workspaceFolder}/build/src"
+          "${workspaceFolder}/tests"
         ],
         "limitSymbolsToIncludedHeaders": true
       }
