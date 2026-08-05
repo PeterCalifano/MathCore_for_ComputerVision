@@ -1,5 +1,5 @@
-name: verify_mathcore_docs
-run-name: Build and publish MathCore documentation
+name: build_docs_pages
+run-name: Build and publish template documentation
 
 on:
   workflow_dispatch:
@@ -20,7 +20,7 @@ on:
       - CMakePresets.json
       - .github/workflows/docs_pages.yml
   pull_request:
-    branches: [main, master, develop, "dev*"]
+    branches: [main, master, develop]
     paths:
       - README.md
       - src/**
@@ -39,6 +39,7 @@ concurrency:
 
 jobs:
   build-docs:
+    if: ${{ github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/develop' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:

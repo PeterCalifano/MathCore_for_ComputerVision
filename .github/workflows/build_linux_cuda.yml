@@ -1,5 +1,5 @@
-name: verify_mathcore_cuda
-run-name: Verify MathCore with CUDA
+name: build_linux_cuda
+run-name: Verify cpp build with CUDA for linux
 
 on:
   workflow_dispatch:
@@ -19,6 +19,7 @@ concurrency:
 
 jobs:
   build-and-test:
+    if: ${{ github.ref == 'refs/heads/develop' }}
     runs-on: [self-hosted, Linux, X64, gpu, cuda]
     timeout-minutes: 90
     env:

@@ -1,5 +1,5 @@
-name: verify_mathcore_linux
-run-name: Verify MathCore on Linux
+name: build_linux
+run-name: Verify cpp build for linux
 
 on:
   workflow_dispatch:
@@ -13,7 +13,7 @@ on:
           - github-hosted
           - self-hosted
   push:
-    branches: [main, master, develop]
+    branches: [main]
     tags: ["v*.*.*"]
     paths:
       - src/**
@@ -28,7 +28,6 @@ on:
       - generate_version.sh
       - .github/workflows/build_linux.yml
   pull_request:
-    branches: [main, master, develop, "dev*"]
     paths:
       - src/**
       - examples/**
@@ -48,6 +47,7 @@ concurrency:
 
 jobs:
   build-and-test:
+    if: ${{ github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/develop' }}
     runs-on: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.runner == 'self-hosted' && fromJSON('["self-hosted","Linux","X64"]') || 'ubuntu-latest' }}
     timeout-minutes: 45
     env:
