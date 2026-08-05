@@ -9,49 +9,20 @@ import sys
 from types import ModuleType
 
 HAS_WRAPPER = False
-WRAPPER_IMPORT_ERROR: Exception | None = None
+WRAPPER_IMPORT_ERROR: ImportError | None = None
+_DLL_DIRECTORY_HANDLES_: list[object] = []
 
-
-def _export_public_symbols(module: object) -> None:
-    public_names = getattr(module, "__all__", None)
-    if public_names is None:
-        public_names = [name for name in dir(module) if not name.startswith("_")]
-
-    globals().update({name: getattr(module, name) for name in public_names})
-
-
-def _load_wrapper_from_build_directory() -> bool:
-    try:
-        from ._wrapper_build import WRAPPER_LIBRARY_DIRS, WRAPPER_MODULE_PATH
-    except ImportError:
-        return False
-
-    module_path = Path(WRAPPER_MODULE_PATH)
-    if not module_path.exists():
-        return False
-
-    for library_dir in WRAPPER_LIBRARY_DIRS:
-        if library_dir and library_dir not in sys.path:
-            sys.path.insert(0, library_dir)
-
-    spec = importlib.util.spec_from_file_location(f"{__name__}.mathcore_for_cv", module_path)
-    if spec is None or spec.loader is None:
-        return False
-
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = module
-
-    try:
-        spec.loader.exec_module(module)
-    except Exception:
-        sys.modules.pop(spec.name, None)
-        raise
-
-    _export_public_symbols(module)
-    return True
+# Python 3.8+ requires explicit DLL search directories on Windows. Retain each
+# handle for the package lifetime so later delay-loaded runtime dependencies
+# remain resolvable.
+if os.name == "nt":
+    _DLL_DIRECTORY_HANDLES_.append(
+        os.add_dll_directory(str(Path(__file__).resolve().parent))
+    )
 
 
 def _export_wrapper_module(module_: ModuleType) -> None:
+    """Re-export the compiled wrapper's public names at package scope."""
     public_names_ = getattr(module_, "__all__", None)
     if public_names_ is None:
         public_names_ = [name_ for name_ in dir(module_) if not name_.startswith("_")]
@@ -60,6 +31,15 @@ def _export_wrapper_module(module_: ModuleType) -> None:
 
 
 def _import_build_linked_wrapper() -> ModuleType:
+    """Import the exact build-tree wrapper recorded by generated metadata.
+
+    Returns:
+        Loaded build-tree extension module.
+
+    Raises:
+        ImportError: If metadata, native artifacts, or the module spec are
+            unavailable.
+    """
     try:
         from . import _wrapper_build
     except ImportError as exc:
@@ -70,10 +50,17 @@ def _import_build_linked_wrapper() -> ModuleType:
         raise ImportError(f"Build-linked wrapper module was not found at '{module_path_}'.")
 
     if os.name == "nt":
-        for dll_dir_ in getattr(_wrapper_build, "WRAPPER_LIBRARY_DIRS", []):
-            dll_path_ = Path(dll_dir_)
+        runtime_paths_ = getattr(
+            _wrapper_build,
+            "WRAPPER_RUNTIME_LIBRARY_PATHS",
+            [],
+        )
+        for runtime_path_ in runtime_paths_:
+            dll_path_ = Path(runtime_path_).parent
             if dll_path_.is_dir():
-                os.add_dll_directory(str(dll_path_))
+                _DLL_DIRECTORY_HANDLES_.append(
+                    os.add_dll_directory(str(dll_path_))
+                )
 
     package_name_ = __name__.split(".")[-1]
     module_name_ = f"{__name__}.{package_name_}"

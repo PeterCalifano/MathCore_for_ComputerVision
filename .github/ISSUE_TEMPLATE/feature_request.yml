@@ -1,0 +1,41 @@
+name: Feature request
+description: Propose a scoped improvement to MathCore, its wrappers, packaging, docs, or CI.
+title: "[FEATURE] "
+labels: [major-enhancement]
+assignees: [PeterCalifano]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or missing capability
+      description: Explain the current limitation and who is affected.
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Owning surface
+      options:
+        - C++ headers or algorithms
+        - CUDA configuration
+        - Python wrapper
+        - MATLAB wrapper
+        - Versioning or packaging
+        - Documentation or CI
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the intended behavior, API, or workflow.
+    validations:
+      required: true
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation plan
+      description: List the tests or acceptance commands that should prove the change.
+      render: text
+    validations:
+      required: true

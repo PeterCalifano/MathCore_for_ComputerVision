@@ -1,4 +1,4 @@
-set(lib_name ${project_name}) # Default name for the library is project_name
+set(lib_name ${LIB_TARGET_NAME}) # Override lets nested consumers avoid target name collisions.
 
 # Add config.h file to build
 configure_file(config.h.in config.h)
@@ -30,7 +30,7 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/wrapped_impl/CMakeLists.txt")
   add_subdirectory(wrapped_impl)
 endif()
 
-if(BUILD_AS_MAIN_PROJECT AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/bin/CMakeLists.txt")
+if(BUILD_AS_MAIN_PROJECT AND ${${BUILD_PROGRAMS_OPTION_NAME}} AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/bin/CMakeLists.txt")
   message(STATUS "Adding module: bin")
   add_subdirectory(bin)
 endif()
@@ -64,13 +64,13 @@ else()
   set_target_properties(${lib_name} PROPERTIES POSITION_INDEPENDENT_CODE ON)
 endif()
 
+set_target_properties(${lib_name} PROPERTIES EXPORT_NAME ${project_name})
+
 message(STATUS "Configured ${lib_name} as a ${lib_target_type} library target")
 set(PROJECT_LIBRARY_KIND "${lib_target_type}" PARENT_SCOPE)
 
-if(SPDLOG_ENABLED)
-  target_compile_definitions(${lib_name} ${lib_link_scope} SPDLOG_UTILS_ENABLED=1)
-else()
-  target_compile_definitions(${lib_name} ${lib_link_scope} SPDLOG_UTILS_ENABLED=0)
+if(NOT TARGET ${LIB_NAMESPACE}::${project_name})
+  add_library(${LIB_NAMESPACE}::${project_name} ALIAS ${lib_name})
 endif()
 
 if(NOT lib_is_header_only AND SANITIZE_BUILD AND SANITIZER_TARGET AND TARGET ${SANITIZER_TARGET})
@@ -81,10 +81,6 @@ target_link_libraries(${lib_name} ${lib_link_scope}
                       ${project_name}_include
                       ${LIB_COMPILE_TARGET}
                       Eigen3::Eigen)
-
-if(SPDLOG_ENABLED AND SPDLOG_LINK_TARGET)
-  target_link_libraries(${lib_name} ${lib_link_scope} ${SPDLOG_LINK_TARGET})
-endif()
 
 if(ENABLE_CUDA)
   target_link_libraries(${lib_name} ${lib_link_scope} ${CUDA_COMPILE_TARGET})
@@ -108,9 +104,6 @@ set(installable_targets ${installable_targets}
                         ${lib_name}
                         ${project_name}_include
                         ${LIB_COMPILE_TARGET})
-if(SPDLOG_ENABLED AND SPDLOG_LINK_TARGET AND NOT SPDLOG_EXTERNAL_PACKAGE)
-  list(APPEND installable_targets ${SPDLOG_LINK_TARGET})
-endif()
 if(TARGET ${PROFILING_COMPILE_TARGET})
   list(APPEND installable_targets ${PROFILING_COMPILE_TARGET})
 endif()

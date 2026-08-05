@@ -1,0 +1,56 @@
+name: Bug report
+description: Report a reproducible MathCore build, API, wrapper, documentation, or packaging problem.
+title: "[BUG] "
+labels: [major-bug]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: State the observed failure and expected behavior.
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Affected surface
+      options:
+        - C++ headers or algorithms
+        - CUDA configuration
+        - Python wrapper
+        - MATLAB wrapper
+        - Versioning or packaging
+        - Documentation or CI
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction commands
+      description: Paste exact commands from a fresh build directory.
+      render: bash
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Output excerpt
+      description: Include the first real error and surrounding context.
+      render: text
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      placeholder: "Ubuntu 24.04, GCC 13.3, CMake 3.28, CUDA 12.9"
+    validations:
+      required: true
+  - type: textarea
+    id: configuration
+    attributes:
+      label: Build configuration
+      description: Include relevant CMake options, toolchain, and whether MathCore is top-level or nested.
+      render: text
+    validations:
+      required: true

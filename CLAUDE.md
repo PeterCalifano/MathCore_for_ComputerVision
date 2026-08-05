@@ -1,86 +1,45 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+## Project overview
 
-## Project Overview
+MathCore for Computer Vision is a header-only C++20 Eigen library. Its stable CMake/package identity is `mathcore_for_cv`, regardless of the checkout directory name. Public modules cover linear algebra, rotations, interpolation, random sampling, and `mathcore::logging::CLogger`.
 
-MathCore_for_SpaceNav is a **header-only C++20 math library** built on Eigen, providing reusable utilities for linear algebra, rotations, interpolation, and random sampling. The CMake project name is `mathcore_for_cv`.
-
-## Build Commands
+## Common commands
 
 ```bash
-# Full configure + build + test (default: RelWithDebInfo)
-./build_lib.sh
-
-# Debug build
-./build_lib.sh -t debug
-
-# Release build (forces tests)
-./build_lib.sh -t release
-
-# Rebuild only (skip CMake configure)
-./build_lib.sh -r
-
-# Build with Ninja, 8 jobs
-./build_lib.sh -t debug -j 8 -N
-
-# Build and install
-./build_lib.sh -i
-
-# Clean rebuild
-./build_lib.sh --clean
-```
-
-Manual CMake workflow:
-
-```bash
-cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
-cmake --build build --parallel $(nproc)
-```
-
-## Running Tests
-
-Tests use **Catch2** (fetched automatically if not found).
-
-```bash
-# Run all tests
+./build_lib.sh -N
+./build_lib.sh -N -t debug
+./build_lib.sh -N -t release -D CPU_ENABLE_NATIVE_TUNING=OFF
 ctest --test-dir build --output-on-failure
 
-# Run a single test binary
-./build/tests/test_linalg
-
-# Run specific Catch2 test cases by name
-./build/tests/test_linalg "[linalg]"
+cmake --preset docs
+cmake --build --preset docs
 ```
 
-Test files follow the naming pattern `tests/test_<module>.cpp`. Each test file links against `Catch2::Catch2WithMain`. The `add_tests()` CMake function in `cmake/cmake_utils.cmake` auto-discovers test files in `tests/`.
+Optional CUDA, Python wrapper, and MATLAB wrapper builds:
 
-## Architecture
+```bash
+./build_lib.sh -N -D ENABLE_CUDA=ON
+./build_lib.sh -N -p
+MATLAB_ROOT_DIR=/usr/local/MATLAB/R2024b ./build_lib.sh -N -m
+```
 
-### Library structure (all under `src/mathcore/`)
+## Architecture and ownership
 
-- **`mathcore.h`** — Umbrella header that includes all public modules
-- **`linalg/`** — Skew-symmetric matrices, SPD validation, vector traits
-- **`rotations/`** — Quaternion operations and traits (Eigen-based)
-- **`interpolation/`** — Polynomial interpolation base class, Chebyshev interpolation
-- **`random/`** — Random scatter/sampling utilities
+- Public headers are below `src/mathcore/`; `src/mathcore/mathcore.h` is the umbrella header.
+- Each module owns a `CMakeLists.txt` that installs its public headers. Do not add a `.cpp` merely for convenience: any compiled source changes the root target from `INTERFACE` to a binary library.
+- Tests named `tests/test*.cpp` are discovered as Catch2 executables. Python `test*.py` files are registered through pytest when enabled.
+- Generic build behavior belongs in `cmake/`; product-specific dependency decisions stay in the root and `src/CMakeLists.txt`.
+- `lib/wrap` is an externally owned gitlink. Ordinary configuration must not move it.
 
-All code lives in the `mathcore` namespace. Headers use `#pragma once` guards.
+## Wrapper and packaging contracts
 
-### Key dependencies
+- Wrapper checkout updates and submodule initialization are explicit maintenance operations only.
+- Python `setup.py`, `pyproject.toml`, package copies, and `_wrapper_build.py` are generated below `<build>/python`, never in the source tree.
+- `_wrapper_build.py` is checkout-only metadata and must not enter installs or wheels.
+- Python installs remain relative to `CMAKE_INSTALL_PREFIX`; pip owns active-environment installation.
+- The MATLAB host-library utility is dry-run by default and never invokes sudo internally.
 
-- **Eigen 3.4+** (required) — Core linear algebra types used throughout
-- **Catch2** — Testing framework (auto-fetched via `cmake/HandleCatch2.cmake`)
-- **C++20** — Uses concepts, `<concepts>`, and modern standard library features
+## Scope boundaries
 
-### CMake design patterns
-
-- The library auto-detects whether it's header-only or compiled based on presence of `.cpp` files in `src/`. Currently header-only (INTERFACE target).
-- Interface targets with `${LIB_NAMESPACE}_` prefix are used for compile options (CUDA, OpenGL, sanitizers, profiling, etc.) to avoid global target name clashes.
-- Submodules in `lib/` are auto-discovered by `cmake/HandleSubmodules.cmake`.
-- The `lib/wrap/` submodule (gtwrap + pybind11) enables optional Python/MATLAB wrapper generation via `--python-wrap` / `--matlab-wrap` build flags.
-- Cross-compilation toolchains are in `cmake/toolchains/defaults/`.
-
-### Extensibility pattern
-
-New modules go in `src/mathcore/<module>/` with their own `CMakeLists.txt` that installs headers and appends sources to the parent scope. Add the subdirectory in `src/mathcore/CMakeLists.txt` and include the new header in the umbrella `src/mathcore/mathcore.h`.
+MathCore does not carry ROS, OptiX/PTX, TensorRT, ZeroMQ, or spdlog facilities. Keep CUDA optional and OFF by default. Container changes require static configuration validation; image/runtime testing is not part of the normal repository gate.

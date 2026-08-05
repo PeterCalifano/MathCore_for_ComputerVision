@@ -28,11 +28,11 @@
 namespace mathcore
 {
     /// Randomly samples matched points from a data matrix and interpolation domain.
-    /// @param num_test_points Maximum number of points to sample.
-    /// @param data_points Output sampled columns from `data_matrix`.
-    /// @param test_points Output sampled times from `interpolation_domain`.
-    /// @param data_matrix Matrix whose columns are the samples to be selected.
-    /// @param interpolation_domain Domain values associated with `data_matrix`.
+    /// @param numTestPoints Maximum number of points to sample.
+    /// @param dataPoints Output sampled columns from `dataMatrix`.
+    /// @param testPoints Output sampled times from `interpolationDomain`.
+    /// @param dataMatrix Matrix whose columns are the samples to be selected.
+    /// @param interpolationDomain Domain values associated with `dataMatrix`.
     template <std::floating_point Scalar>
     inline void sampleTestPoints(const int numTestPoints,
                                  std::vector<Eigen::VectorX<Scalar>> &dataPoints,

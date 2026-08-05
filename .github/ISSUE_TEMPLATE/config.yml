@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: MathCore documentation
+    url: https://github.com/PeterCalifano/MathCore_for_ComputerVision#readme
+    about: Review the build, wrapper, and packaging guidance before opening an issue.

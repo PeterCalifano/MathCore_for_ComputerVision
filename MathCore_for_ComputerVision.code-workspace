@@ -1,0 +1,22 @@
+{
+  "folders": [
+    {
+      "path": "."
+    },
+    {
+      "path": "../SimulationGears_for_SpaceNav"
+    },
+    {
+      "path": "../EstimationGears_for_SpaceNav"
+    },
+    {
+      "path": "../dev-tools/UnitTesting4MATLAB"
+    },
+    {
+      "path": "../SLAM-repos/gtsam_spaceNav"
+    }
+  ],
+  "settings": {
+    "chatgpt.openOnStartup": true
+  }
+}

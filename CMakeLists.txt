@@ -12,6 +12,12 @@ set(MATLAB_DEFAULT_RELEASE "R2023b")
 
 # PROJECT DEFINITION
 set(project_name "mathcore_for_cv")
+set(project_description
+    "Header-only C++20 mathematics library for computer-vision and space-navigation applications")
+set(project_homepage_url "https://github.com/PeterCalifano/MathCore_for_ComputerVision")
+set(PROJECT_MAINTAINER_NAME "Pietro Califano" CACHE STRING "Project maintainer name")
+set(PROJECT_MAINTAINER_EMAIL "petercalifano.gs@gmail.com" CACHE STRING "Project maintainer email")
+set(PROJECT_LICENSE "MIT" CACHE STRING "Project SPDX license identifier")
 
 # Set install default directory if not specified
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)
@@ -46,13 +52,20 @@ set(PROJECT_VERSION_CORE "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PR
 # Resolve version: git --> VERSION file --> hardcoded defaults above
 resolve_project_version()
 
-project( ${project_name} 
-        LANGUAGES ${languages}
-        VERSION ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH})
+project(${project_name}
+        VERSION ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH}
+        DESCRIPTION "${project_description}"
+        HOMEPAGE_URL "${project_homepage_url}"
+        LANGUAGES ${languages})
 
-# Write VERSION file to source and build directories
-write_source_VERSION_file()
+# Write VERSION into the build tree by default. Source-tree mutation is opt-in
+# so ordinary configures and CI probes leave the checkout clean.
+option(WRITE_SOURCE_VERSION_FILE "Write VERSION into the source tree during CMake configure" OFF)
+if(WRITE_SOURCE_VERSION_FILE)
+  write_source_VERSION_file()
+endif()
 write_build_VERSION_file()
+install(FILES "${PROJECT_BINARY_DIR}/VERSION" DESTINATION ".")
 
 # Define variable for build as subproject (compare source dir)
 set(BUILD_AS_MAIN_PROJECT ON)
@@ -68,8 +81,16 @@ endif()
 set(CUDA_COMPILE_TARGET "${LIB_NAMESPACE}_cuda_compile_interface")
 set(OPENGL_COMPILE_TARGET "${LIB_NAMESPACE}_opengl_compile_interface")
 set(LIB_COMPILE_TARGET "${LIB_NAMESPACE}_lib_compile_interface")
-set(SPDLOG_COMPILE_TARGET "${LIB_NAMESPACE}_spdlog_interface")
 set(SANITIZER_TARGET "${LIB_NAMESPACE}_sanitizer_target_interface")
+
+# Keep target and option names collision-free when MathCore is embedded in a
+# larger superbuild.
+set(LIB_TARGET_NAME "${project_name}")
+if(DEFINED LIB_TARGET_NAME_OVERRIDE)
+  set(LIB_TARGET_NAME "${LIB_TARGET_NAME_OVERRIDE}")
+endif()
+set(BUILD_PROGRAMS_OPTION_NAME "${LIB_NAMESPACE}_BUILD_PROGRAMS")
+set(BUILD_EXAMPLES_OPTION_NAME "${LIB_NAMESPACE}_BUILD_EXAMPLES")
 
 # Handle toolchain settings (after project so compiler/system vars are populated)
 include(cmake/toolchains/HandleToolchain.cmake)
@@ -106,10 +127,26 @@ endif()
 
 # OPTIONS
 option(ENABLE_TESTS              "Build and run tests" ON)
+option(ENABLE_PYTHON_TESTS       "Discover and register Python pytest tests through CTest" ON)
 option(ENABLE_FETCH_CATCH2 "Fetch Catch2 from GitHub if not found" ON)
-option(ENABLE_SPDLOG "Enable spdlog logging support" ON)
-option(ENABLE_FETCH_SPDLOG "Fetch spdlog from GitHub if not found" ON)
+
+set(CATCH2_TEST_REPORTER "compact" CACHE STRING "Catch2 reporter used by catch_discover_tests. Set empty to use Catch2 defaults.")
+set(CATCH2_TEST_PROPERTIES "LABELS;catch2" CACHE STRING "CTest property name/value pairs applied to discovered Catch2 tests.")
+
+set(PYTHON_TEST_RUNNER "pytest" CACHE STRING "Python test runner used for test*.py files")
+set_property(CACHE PYTHON_TEST_RUNNER PROPERTY STRINGS pytest)
+set(PYTHON_TEST_EXECUTABLE "" CACHE FILEPATH "Python executable used for pytest tests when conda is not selected")
+set(PYTHON_TEST_CONDA_ENV "" CACHE STRING "Optional conda environment name used for pytest tests")
+set(PYTHON_TEST_CONDA_PREFIX "" CACHE PATH "Optional conda environment prefix used for pytest tests")
+set(PYTHON_TEST_CONDA_EXECUTABLE "conda" CACHE STRING "Conda executable used when PYTHON_TEST_CONDA_ENV or PYTHON_TEST_CONDA_PREFIX is set")
+
+option(${BUILD_PROGRAMS_OPTION_NAME} "Build project program targets when this project is the main project" ON)
+option(${BUILD_EXAMPLES_OPTION_NAME} "Build project example targets when this project is the main project" ON)
 option(VERBOSE "Verbose output" OFF) # Defines VERBOSE flag in code if set to ON
+
+if(BUILD_AS_MAIN_PROJECT AND ENABLE_TESTS)
+  include(CTest)
+endif()
 
 if (NOT DEFINED GTWRAP_BUILD_PYTHON_DEFAULT)
   set(GTWRAP_BUILD_PYTHON_DEFAULT OFF CACHE BOOL "Default Python wrapper setting for all subprojects")
@@ -123,6 +160,8 @@ set(GTWRAP_MATLAB_OPTION_NAME "${LIB_NAMESPACE}_BUILD_MATLAB_WRAPPER")
 set(GTWRAP_INTERFACE_OPTION_NAME "${LIB_NAMESPACE}_WRAPPER_INTERFACE_FILES")
 set(GTWRAP_TOP_NAMESPACE_OPTION_NAME "${LIB_NAMESPACE}_GTWRAP_TOP_NAMESPACE")
 set(GTWRAP_DEPENDENCIES_OPTION_NAME "${LIB_NAMESPACE}_GTWRAP_DEPENDENCY_TARGETS")
+set(GTWRAP_RUNTIME_DEPENDENCIES_OPTION_NAME
+    "${LIB_NAMESPACE}_GTWRAP_RUNTIME_DEPENDENCY_TARGETS")
 set(GTWRAP_ROOT_OPTION_NAME "${LIB_NAMESPACE}_GTWRAP_ROOT_DIR")
 
 option(${GTWRAP_PYTHON_OPTION_NAME} "Build Python wrapper" ${GTWRAP_BUILD_PYTHON_DEFAULT})
@@ -149,6 +188,14 @@ if (NOT DEFINED ${GTWRAP_DEPENDENCIES_OPTION_NAME})
       ""
       CACHE STRING
       "Additional dependency targets required before wrapping."
+      FORCE)
+endif()
+
+if (NOT DEFINED ${GTWRAP_RUNTIME_DEPENDENCIES_OPTION_NAME})
+  set(${GTWRAP_RUNTIME_DEPENDENCIES_OPTION_NAME}
+      ""
+      CACHE STRING
+      "Direct project-owned shared runtime build targets packaged beside the Python wrapper."
       FORCE)
 endif()
 
@@ -179,121 +226,8 @@ set(EXTRA_C_FLAGS "" CACHE STRING "Extra C compiler flags appended to project-ma
 set(EXTRA_CXX_FLAGS "" CACHE STRING "Extra C++ compiler flags appended to project-managed flags")
 set(PYTHON_EXECUTABLE "python3") # Specify the Python executable to use
 
-# Set C++ standard
-set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
-
-# TIP: if different options need to be specified for different targets of the build, use INTERFACE targets
-
-set(_initial_c_flags "${CMAKE_C_FLAGS}")
-set(_initial_cxx_flags "${CMAKE_CXX_FLAGS}")
-
-# COMPILER FLAGS
-set(_common_c_warnings -Wall -Wextra)
-set(_common_cxx_warnings ${_common_c_warnings} -Wsuggest-override)
-
-set(_debug_flags -Og -g -fmax-errors=3)
-set(_debug_sanitizers)
-if(SANITIZE_BUILD AND SANITIZERS)
-  set(_debug_sanitizers -fsanitize=${SANITIZERS})
-endif()
-set(_release_flags -O3 -fmax-errors=1)
-set(_relwithdebinfo_flags -O2 -g)
-set(_noptim_flags -O0 -g)
-set(_safety_warnings -Wnull-dereference -Wfloat-equal -fdelete-null-pointer-checks -Wconversion)
-
-set(_cpu_opt_flags)
-if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-  if(CPU_ENABLE_NATIVE_TUNING)
-    list(APPEND _cpu_opt_flags -march=native -mtune=native)
-  endif()
-
-  if(CPU_ENABLE_FMA)
-    list(APPEND _cpu_opt_flags -mfma)
-  endif()
-
-  if(CPU_ENABLE_SIMD)
-    string(TOLOWER "${CPU_SIMD_LEVEL}" _cpu_simd_level)
-    if(_cpu_simd_level STREQUAL "native")
-      list(APPEND _cpu_opt_flags -march=native -mtune=native)
-    elseif(_cpu_simd_level STREQUAL "sse4.2" OR _cpu_simd_level STREQUAL "sse4_2")
-      list(APPEND _cpu_opt_flags -msse4.2)
-    elseif(_cpu_simd_level STREQUAL "avx")
-      list(APPEND _cpu_opt_flags -mavx)
-    elseif(_cpu_simd_level STREQUAL "avx2")
-      list(APPEND _cpu_opt_flags -mavx2)
-    elseif(_cpu_simd_level STREQUAL "avx512f")
-      list(APPEND _cpu_opt_flags -mavx512f)
-    else()
-      message(FATAL_ERROR "Unsupported CPU_SIMD_LEVEL='${CPU_SIMD_LEVEL}'. Supported values: native,sse4.2,avx,avx2,avx512f")
-    endif()
-  endif()
-
-  if(NOT "${CPU_EXTRA_OPT_FLAGS}" STREQUAL "")
-    separate_arguments(_cpu_extra_opt_flags UNIX_COMMAND "${CPU_EXTRA_OPT_FLAGS}")
-    list(APPEND _cpu_opt_flags ${_cpu_extra_opt_flags})
-  endif()
-
-  list(REMOVE_DUPLICATES _cpu_opt_flags)
-elseif(CPU_ENABLE_NATIVE_TUNING OR CPU_ENABLE_FMA OR CPU_ENABLE_SIMD OR NOT "${CPU_EXTRA_OPT_FLAGS}" STREQUAL "")
-  message(WARNING "CPU optimization toggles are intended for GNU/Clang compilers. Current compiler is '${CMAKE_CXX_COMPILER_ID}'.")
-endif()
-
-set(_debug_c_flags ${_debug_flags} ${_common_c_warnings} ${_debug_sanitizers})
-set(_debug_cxx_flags ${_debug_flags} ${_common_cxx_warnings} ${_debug_sanitizers})
-set(_release_c_flags ${_release_flags} ${_common_c_warnings})
-set(_release_cxx_flags ${_release_flags} ${_common_cxx_warnings})
-set(_relwithdebinfo_c_flags ${_relwithdebinfo_flags} ${_common_c_warnings} ${_safety_warnings})
-set(_relwithdebinfo_cxx_flags ${_relwithdebinfo_flags} ${_common_cxx_warnings} ${_safety_warnings} -Wnon-virtual-dtor)
-set(_noptim_c_flags ${_noptim_flags} ${_common_c_warnings} ${_safety_warnings})
-set(_noptim_cxx_flags ${_noptim_flags} ${_common_cxx_warnings} ${_safety_warnings} -Wnon-virtual-dtor)
-
-list(APPEND _release_c_flags ${_cpu_opt_flags})
-list(APPEND _release_cxx_flags ${_cpu_opt_flags})
-list(APPEND _relwithdebinfo_c_flags ${_cpu_opt_flags})
-list(APPEND _relwithdebinfo_cxx_flags ${_cpu_opt_flags})
-
-set(_user_c_flags)
-if (NOT "${_initial_c_flags}" STREQUAL "")
-  separate_arguments(_initial_c_flags_list UNIX_COMMAND "${_initial_c_flags}")
-  list(APPEND _user_c_flags ${_initial_c_flags_list})
-endif()
-if (NOT "${EXTRA_C_FLAGS}" STREQUAL "")
-  separate_arguments(_extra_c_flags_list UNIX_COMMAND "${EXTRA_C_FLAGS}")
-  list(APPEND _user_c_flags ${_extra_c_flags_list})
-endif()
-list(REMOVE_DUPLICATES _user_c_flags)
-
-set(_user_cxx_flags)
-if (NOT "${_initial_cxx_flags}" STREQUAL "")
-  separate_arguments(_initial_cxx_flags_list UNIX_COMMAND "${_initial_cxx_flags}")
-  list(APPEND _user_cxx_flags ${_initial_cxx_flags_list})
-endif()
-if (NOT "${EXTRA_CXX_FLAGS}" STREQUAL "")
-  separate_arguments(_extra_cxx_flags_list UNIX_COMMAND "${EXTRA_CXX_FLAGS}")
-  list(APPEND _user_cxx_flags ${_extra_cxx_flags_list})
-endif()
-list(REMOVE_DUPLICATES _user_cxx_flags)
-
-list(APPEND _debug_c_flags ${_user_c_flags})
-list(APPEND _release_c_flags ${_user_c_flags})
-list(APPEND _relwithdebinfo_c_flags ${_user_c_flags})
-list(APPEND _noptim_c_flags ${_user_c_flags})
-
-list(APPEND _debug_cxx_flags ${_user_cxx_flags})
-list(APPEND _release_cxx_flags ${_user_cxx_flags})
-list(APPEND _relwithdebinfo_cxx_flags ${_user_cxx_flags})
-list(APPEND _noptim_cxx_flags ${_user_cxx_flags})
-
-string(JOIN " " CMAKE_C_FLAGS_DEBUG ${_debug_c_flags})
-string(JOIN " " CMAKE_CXX_FLAGS_DEBUG ${_debug_cxx_flags})
-string(JOIN " " CMAKE_C_FLAGS_RELEASE ${_release_c_flags})
-string(JOIN " " CMAKE_CXX_FLAGS_RELEASE ${_release_cxx_flags})
-string(JOIN " " CMAKE_C_FLAGS_RELWITHDEBINFO ${_relwithdebinfo_c_flags})
-string(JOIN " " CMAKE_CXX_FLAGS_RELWITHDEBINFO ${_relwithdebinfo_cxx_flags})
-string(JOIN " " CMAKE_C_FLAGS_NOPTIM ${_noptim_c_flags})
-string(JOIN " " CMAKE_CXX_FLAGS_NOPTIM ${_noptim_cxx_flags})
+include(cmake/HandleCompilerFlags.cmake)
+handle_compiler_flags(CXX_STANDARD 20)
 
 # Handle OpenMP
 handle_openmp()
@@ -322,8 +256,6 @@ find_package( Doxygen QUIET)
 
 # Handle Catch2 tools
 include(cmake/HandleCatch2.cmake)
-include(cmake/HandleSpdlog.cmake)
-handle_spdlog(TARGET ${SPDLOG_COMPILE_TARGET})
 
 # Include cmake tools (depends on Catch2)
 include(cmake/cmake_utils.cmake)
@@ -352,9 +284,6 @@ endif()
 if(ENABLE_TBB)
   list(APPEND EXPORT_TARGET_DEPS TBB)
 endif()
-if(SPDLOG_ENABLED AND SPDLOG_EXTERNAL_PACKAGE)
-  list(APPEND EXPORT_TARGET_DEPS spdlog)
-endif()
 
 message(STATUS "Target dependencies: ${EXPORT_TARGET_DEPS}")
 
@@ -369,47 +298,9 @@ message(STATUS "Target dependencies: ${EXPORT_TARGET_DEPS}")
 
 # Interface target for C++ flags
 add_library(${LIB_COMPILE_TARGET} INTERFACE)
+handle_toolchain(TARGET ${LIB_COMPILE_TARGET})
 handle_tbb(TARGET ${LIB_COMPILE_TARGET})
-
-if (CMAKE_BUILD_TYPE_LOWER MATCHES "debug")
-  # Set compile flags
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS_DEBUG}")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_DEBUG}")
-
-  # Set compile options for the interface target
-  set(_sanitizer_flags)
-  if(SANITIZE_BUILD AND SANITIZERS)
-    set(_sanitizer_flags -fsanitize=${SANITIZERS})
-  endif()
-  target_compile_options(${LIB_COMPILE_TARGET} INTERFACE
-                      ${_sanitizer_flags}
-                      -fno-omit-frame-pointer
-  )
-
-  target_link_options(${LIB_COMPILE_TARGET} INTERFACE
-                      ${_sanitizer_flags}
-                      -fno-omit-frame-pointer
-  )
-
-elseif (CMAKE_BUILD_TYPE_LOWER MATCHES "release" AND NOT NO_OPTIMIZATION)
-  # Set compile flags
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS_RELEASE}")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_RELEASE}")
-
-elseif (CMAKE_BUILD_TYPE_LOWER MATCHES "relwithdebinfo" AND NOT NO_OPTIMIZATION) 
-  # Set compile flags
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS_RELWITHDEBINFO}")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_RELWITHDEBINFO}")
-
-elseif (NO_OPTIMIZATION)
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS_NOPTIM}")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_NOPTIM}")
-  target_compile_definitions(${LIB_COMPILE_TARGET} INTERFACE NDEBUG)
-
-else()
-  # Stop build
-  message(FATAL_ERROR "Unknown build type: ${CMAKE_BUILD_TYPE}. Stopping build.")
-endif()
+handle_compiler_flags_interface(TARGET ${LIB_COMPILE_TARGET})
 
 # Add catch2 for unit testing
 find_package(OpenCV QUIET)
@@ -456,18 +347,17 @@ message(STATUS "====================  Library composition  =====================
 add_subdirectory( src )
 
 # Add examples to build
-if (BUILD_AS_MAIN_PROJECT)
+if (BUILD_AS_MAIN_PROJECT AND ${${BUILD_EXAMPLES_OPTION_NAME}})
   add_subdirectory( examples )
 endif()
 
 # Add tests to build
-if (ENABLE_TESTS AND Catch2_FOUND AND BUILD_AS_MAIN_PROJECT)
+if (ENABLE_TESTS AND BUILD_AS_MAIN_PROJECT)
   add_subdirectory( tests )
 endif()
 
 # Add documentation
 if (BUILD_AS_MAIN_PROJECT)
-  set(DOC_SUBDIRS "${CMAKE_SOURCE_DIR}/src")
   if (DOXYGEN_FOUND)
       add_subdirectory( "doc" )
   else()
@@ -481,10 +371,9 @@ set(ANY_WRAPPER_ENABLED OFF)
 if(BUILD_AS_MAIN_PROJECT)
   set(LIBNAME_WRAP_TARGET ${project_name})
   handle_gtwrappers() # You may also pass WRAP_INTERFACE_FILES variable to specify interface files, else autofetching is used
-  handle_pybind11_wrapper()
 
   # Determine if any wrapper is enabled
-  if (${GTWRAP_PYTHON_OPTION_NAME} OR PYBIND11_WRAPPER_ENABLED OR ${GTWRAP_MATLAB_OPTION_NAME})
+  if (${GTWRAP_PYTHON_OPTION_NAME} OR ${GTWRAP_MATLAB_OPTION_NAME})
     set(ANY_WRAPPER_ENABLED ON)
   endif()
 endif()
@@ -529,6 +418,10 @@ message(STATUS "CPU extra optimization flags             : ${CPU_EXTRA_OPT_FLAGS
 message(STATUS "Project extra C flags                    : ${EXTRA_C_FLAGS}")
 message(STATUS "Project extra C++ flags                  : ${EXTRA_CXX_FLAGS}")
 message(STATUS "OpenCV found                             : ${OpenCV_FOUND}")
+message(STATUS "Catch2 test reporter                     : ${CATCH2_TEST_REPORTER}")
+message(STATUS "Python tests enabled                     : ${ENABLE_PYTHON_TESTS}")
+message(STATUS "Python test conda env                    : ${PYTHON_TEST_CONDA_ENV}")
+message(STATUS "Python test conda prefix                 : ${PYTHON_TEST_CONDA_PREFIX}")
 
 # Installation
 message(STATUS "CMAKE_INSTALL_PREFIX                      : ${CMAKE_INSTALL_PREFIX}")
@@ -536,34 +429,13 @@ message(STATUS "CMAKE_INSTALL_LIBDIR                      : ${CMAKE_INSTALL_LIBD
 message(STATUS "CMAKE_INSTALL_INCLUDEDIR                  : ${CMAKE_INSTALL_INCLUDEDIR}")
 message(STATUS "CMAKE_INSTALL_BINDIR                      : ${CMAKE_INSTALL_BINDIR}")
 message(STATUS "BUILD_SHARED_LIBS                         : ${BUILD_SHARED_LIBS}")
+message(STATUS "${BUILD_PROGRAMS_OPTION_NAME}                  : ${${BUILD_PROGRAMS_OPTION_NAME}}")
+message(STATUS "${BUILD_EXAMPLES_OPTION_NAME}                  : ${${BUILD_EXAMPLES_OPTION_NAME}}")
 
-# Build type
-if(NOT MSVC AND NOT XCODE_VERSION)
-  message(STATUS "Build type                                : ${CMAKE_BUILD_TYPE}")  
-  message(STATUS "Optimization override:                    : ${NO_OPTIMIZATION}")  
-
-  if(CMAKE_BUILD_TYPE MATCHES Debug)
-    message(STATUS "  C compilation flags                     : ${CMAKE_C_FLAGS}")
-    message(STATUS "  C++ compilation flags                   : ${CMAKE_CXX_FLAGS}")
-  elseif (CMAKE_BUILD_TYPE MATCHES Release)
-    message(STATUS "  C compilation flags                     : ${CMAKE_C_FLAGS}")
-    message(STATUS "  C++ compilation flags                   : ${CMAKE_CXX_FLAGS}")
-  elseif (CMAKE_BUILD_TYPE MATCHES RelWithDebInfo)
-    message(STATUS "  C compilation flags                     : ${CMAKE_C_FLAGS}")
-    message(STATUS "  C++ compilation flags                   : ${CMAKE_CXX_FLAGS}")
-  elseif (NO_OPTIMIZATION)
-    message(STATUS "  C compilation flags                     : ${CMAKE_C_FLAGS}")
-    message(STATUS "  C++ compilation flags                   : ${CMAKE_CXX_FLAGS}")
-  else()
-    message(STATUS "  C compilation flags                     : ${CMAKE_C_FLAGS}")
-    message(STATUS "  C++ compilation flags                   : ${CMAKE_CXX_FLAGS}")
-  endif()
-
-endif()
+print_compiler_flags_summary()
 # Print info about wrappers if any
 if (ANY_WRAPPER_ENABLED)
   message(STATUS "================  Wrappers Configuration  ======================")
-  message(STATUS "Python pybind11 direct wrapper              : ${PYBIND11_WRAPPER_ENABLED}")
   message(STATUS "Python gtwrapper                            : ${${GTWRAP_PYTHON_OPTION_NAME}}")
   message(STATUS "MATLAB gtwrapper                            : ${${GTWRAP_MATLAB_OPTION_NAME}}")
   message(STATUS "MATLAB default release                      : ${MATLAB_DEFAULT_RELEASE}")
@@ -572,6 +444,7 @@ if (ANY_WRAPPER_ENABLED)
   message(STATUS "gtwrap interface option name                : ${GTWRAP_INTERFACE_OPTION_NAME}")
   message(STATUS "gtwrap interface files                      : ${${GTWRAP_INTERFACE_OPTION_NAME}}")
   message(STATUS "gtwrap top namespace                        : ${${GTWRAP_TOP_NAMESPACE_OPTION_NAME}}")
+  message(STATUS "gtwrap runtime dependency targets          : ${${GTWRAP_RUNTIME_DEPENDENCIES_OPTION_NAME}}")
   message(STATUS "gtwrap root override                        : ${${GTWRAP_ROOT_OPTION_NAME}}")
 endif()
 message(STATUS "===============================================================")
@@ -590,13 +463,150 @@ set(CTEST_NIGHTLY_START_TIME "00:00:00 CET")
 # PACKAGING CONFIGURATION 
 include(InstallRequiredSystemLibraries)
 set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "${PROJECT_DESCRIPTION}")
+set(CPACK_PACKAGE_HOMEPAGE_URL "${PROJECT_HOMEPAGE_URL}")
+set(CPACK_PACKAGE_VENDOR "${PROJECT_MAINTAINER_NAME}")
+set(CPACK_PACKAGE_CONTACT "${PROJECT_MAINTAINER_NAME} <${PROJECT_MAINTAINER_EMAIL}>")
 set(CPACK_PACKAGE_VERSION_MAJOR "${PROJECT_VERSION_MAJOR}")
 set(CPACK_PACKAGE_VERSION_MINOR "${PROJECT_VERSION_MINOR}")
 set(CPACK_PACKAGE_VERSION_PATCH "${PROJECT_VERSION_PATCH}")
 if(DEFINED FULL_VERSION AND NOT "${FULL_VERSION}" STREQUAL "")
   set(CPACK_PACKAGE_FILE_NAME "${project_name}-${FULL_VERSION}")
-  set(CPACK_SOURCE_PACKAGE_FILE_NAME "${project_name}-${FULL_VERSION}")
+  set(CPACK_SOURCE_PACKAGE_FILE_NAME "${project_name}-${FULL_VERSION}-source")
 endif()
 set(CPACK_GENERATOR "TGZ")
 set(CPACK_SOURCE_GENERATOR "TGZ")
+
+# VERSION is generated in the build tree so configured package metadata remains
+# authoritative even when the ignored source-tree fallback is stale. Stage that
+# exact file through CPack's private install prefix for binary and source TGZs.
+set(_cpack_stage_version_script
+    "${PROJECT_BINARY_DIR}/StagePackageVersion.cmake")
+configure_file(
+  "${CMAKE_CURRENT_SOURCE_DIR}/cmake/StagePackageVersion.cmake.in"
+  "${_cpack_stage_version_script}"
+  @ONLY)
+if(CMAKE_VERSION VERSION_LESS "3.16")
+  set(CPACK_INSTALL_SCRIPT "${_cpack_stage_version_script}")
+else()
+  list(APPEND CPACK_INSTALL_SCRIPTS "${_cpack_stage_version_script}")
+endif()
+
+# Preserve source-ignore regexes verbatim and anchor known generated outputs
+# beneath this checkout rather than matching adjacent directories. The ignored
+# source VERSION must not overwrite the generated file staged above.
+set(CPACK_VERBATIM_VARIABLES YES)
+set(_cpack_source_root_regex "${CMAKE_CURRENT_SOURCE_DIR}")
+string(
+  REGEX REPLACE "([][+.*^$()|?\\\\])" "\\\\\\1"
+  _cpack_source_root_regex "${_cpack_source_root_regex}")
+set(CPACK_SOURCE_IGNORE_FILES
+    "^${_cpack_source_root_regex}/(.*/)?\\.git(/|$)"
+    "^${_cpack_source_root_regex}/VERSION$"
+    "^${_cpack_source_root_regex}/install/"
+    "^${_cpack_source_root_regex}/(.*/)?\\.pytest_cache/"
+    "^${_cpack_source_root_regex}/(.*/)?__pycache__/"
+    "^${_cpack_source_root_regex}/.*\\.py[cod]$")
+
+# Exclude the active nested binary tree and other nested CMake builds whose
+# caches prove that this exact checkout owns them. Directory names alone are
+# insufficient because paths such as tools/build_helpers may be real sources.
+get_filename_component(
+  _cpack_source_root_real
+  "${CMAKE_CURRENT_SOURCE_DIR}"
+  REALPATH)
+get_filename_component(
+  _cpack_binary_root_real
+  "${CMAKE_BINARY_DIR}"
+  REALPATH)
+file(
+  RELATIVE_PATH
+  _cpack_binary_relative_to_source
+  "${_cpack_source_root_real}"
+  "${_cpack_binary_root_real}")
+set(_cpack_owned_build_directories)
+if(NOT IS_ABSOLUTE "${_cpack_binary_relative_to_source}"
+    AND NOT "${_cpack_binary_relative_to_source}" MATCHES "^\\.\\.(/|$)"
+    AND NOT "${_cpack_binary_relative_to_source}" STREQUAL "")
+  list(APPEND
+    _cpack_owned_build_directories
+    "${CMAKE_BINARY_DIR}")
+endif()
+
+file(
+  GLOB_RECURSE
+  _cpack_cache_candidates
+  LIST_DIRECTORIES FALSE
+  "${CMAKE_CURRENT_SOURCE_DIR}/*/CMakeCache.txt")
+foreach(_cpack_cache_candidate IN LISTS _cpack_cache_candidates)
+  file(
+    RELATIVE_PATH
+    _cpack_cache_relative_to_source
+    "${CMAKE_CURRENT_SOURCE_DIR}"
+    "${_cpack_cache_candidate}")
+  if("${_cpack_cache_relative_to_source}" MATCHES "^install/")
+    continue()
+  endif()
+
+  set(_cpack_cache_is_within_owned_build FALSE)
+  foreach(_cpack_known_build IN LISTS _cpack_owned_build_directories)
+    file(
+      RELATIVE_PATH
+      _cpack_cache_relative_to_build
+      "${_cpack_known_build}"
+      "${_cpack_cache_candidate}")
+    if(NOT IS_ABSOLUTE "${_cpack_cache_relative_to_build}"
+        AND NOT "${_cpack_cache_relative_to_build}" MATCHES "^\\.\\.(/|$)")
+      set(_cpack_cache_is_within_owned_build TRUE)
+      break()
+    endif()
+  endforeach()
+  if(_cpack_cache_is_within_owned_build
+      OR NOT EXISTS "${_cpack_cache_candidate}")
+    continue()
+  endif()
+
+  file(
+    STRINGS
+    "${_cpack_cache_candidate}"
+    _cpack_cache_home_entries
+    REGEX "^CMAKE_HOME_DIRECTORY:INTERNAL="
+    LIMIT_COUNT 1)
+  if(NOT _cpack_cache_home_entries)
+    continue()
+  endif()
+
+  list(GET _cpack_cache_home_entries 0 _cpack_cache_home_entry)
+  string(REGEX MATCH
+    "^CMAKE_HOME_DIRECTORY:INTERNAL=(.*)$"
+    _cpack_cache_home_match
+    "${_cpack_cache_home_entry}")
+  set(_cpack_cache_home "${CMAKE_MATCH_1}")
+  get_filename_component(
+    _cpack_cache_home_real
+    "${_cpack_cache_home}"
+    REALPATH)
+  if(NOT "${_cpack_cache_home_real}" STREQUAL "${_cpack_source_root_real}")
+    continue()
+  endif()
+
+  get_filename_component(
+    _cpack_owned_build_directory
+    "${_cpack_cache_candidate}"
+    DIRECTORY)
+  list(APPEND
+    _cpack_owned_build_directories
+    "${_cpack_owned_build_directory}")
+endforeach()
+
+list(REMOVE_DUPLICATES _cpack_owned_build_directories)
+foreach(_cpack_owned_build_directory IN LISTS _cpack_owned_build_directories)
+  string(
+    REGEX REPLACE "([][+.*^$()|?\\\\])" "\\\\\\1"
+    _cpack_owned_build_regex "${_cpack_owned_build_directory}")
+  list(
+    APPEND
+    CPACK_SOURCE_IGNORE_FILES
+    "^${_cpack_owned_build_regex}(/|$)")
+endforeach()
 include(CPack)

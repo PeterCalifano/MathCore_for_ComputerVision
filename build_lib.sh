@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Build helper for CMake-based C++ projects (Linux)
-# - Created Jan 2024; updated Aug 2025
+# - Created Jan 2024; updated Jul 2026
 # - Uses GNU getopt for long options
 # - Generator-agnostic build via `cmake --build`
 
@@ -26,8 +26,13 @@ clean_first=false
 profiling=false
 toolchain_file=""
 gtwrap_root=""
-wrap_update=true
+wrap_update=false
+wrap_submodule_init=false
 wrap_branch="master"
+python_test_conda_env=""
+python_test_conda_prefix=""
+python_test_executable=""
+ctest_extra_args=""
 cmake_defines=()
 
 detect_project_name() {
@@ -113,35 +118,6 @@ detect_wrap_root() {
   return 1
 }
 
-init_wrap_submodule_if_needed() {
-  local _project_root="$1"
-  local _wrap_rel=""
-
-  if [[ ! -f "${_project_root}/.gitmodules" ]]; then
-    return 0
-  fi
-  if ! git -C "${_project_root}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    return 0
-  fi
-
-  if grep -Eq '^[[:space:]]*path[[:space:]]*=[[:space:]]*lib/wrap[[:space:]]*$' "${_project_root}/.gitmodules"; then
-    _wrap_rel="lib/wrap"
-  elif grep -Eq '^[[:space:]]*path[[:space:]]*=[[:space:]]*wrap[[:space:]]*$' "${_project_root}/.gitmodules"; then
-    _wrap_rel="wrap"
-  fi
-
-  if [[ -z "${_wrap_rel}" ]]; then
-    return 0
-  fi
-  if [[ -f "${_project_root}/${_wrap_rel}/cmake/PybindWrap.cmake" ]]; then
-    return 0
-  fi
-
-  info "Initializing wrap submodule (${_wrap_rel})..."
-  git -C "${_project_root}" submodule sync --recursive
-  git -C "${_project_root}" submodule update --init --recursive "${_wrap_rel}"
-}
-
 update_wrap_checkout() {
   local _root="$1"
   local _branch="$2"
@@ -209,13 +185,26 @@ Options:
   -m, --matlab-wrap           Enable MATLAB wrapper defaults (-DGTWRAP_BUILD_MATLAB_DEFAULT=ON)
       --gtwrap-root <dir>     Path to wrap checkout root for gtwrap
                               (maps to -D<project>_GTWRAP_ROOT_DIR=<dir>)
-      --no-wrap-update        Disable auto-update of local wrap checkout to latest master
+      --wrap-update           Explicitly update a local wrap checkout to latest master
+      --no-wrap-update        Keep the local wrap checkout unchanged (default)
+      --wrap-submodule-init   Explicitly initialize a declared wrap submodule fallback
+      --no-wrap-submodule-init
+                              Do not initialize a wrap submodule (default)
   -i, --install               Run "install" target after tests
   -N, --ninja-build           Use Ninja generator (requires `ninja`)
   -n, --no-optim              Set -DNO_OPTIMIZATION=ON in the CMake cache
       --profile               Enable profiling build (-DENABLE_PROFILING=ON)
       --toolchain <file>      Pass CMake toolchain file (-DCMAKE_TOOLCHAIN_FILE=<file>)
+      --python-test-conda-env <name>
+                              Run registered test*.py CTest entries with "conda run -n <name>"
+      --python-test-conda-prefix <dir>
+                              Run registered test*.py CTest entries with "conda run -p <dir>"
+      --python-test-executable <path>
+                              Python executable for test*.py CTest entries when conda is not selected
+      --ctest-extra-args <args>
+                              Simple whitespace-split arguments appended to ctest
       --clean                 Delete build dir before configuring
+                              (recommended for cross-machine/cache portability checks)
   -h, --help                  Show this help and exit
 
 Examples:
@@ -234,9 +223,14 @@ Notes:
     For CMake defines, use "-DVAR=ON" or "-D VAR=ON".
   * Wrapper rebuilds with "-r -p" or "-r -m" only work if the existing build
     directory was already configured with those wrappers enabled.
+  * "--clean" is ignored with "--rebuild-only". Otherwise it accepts only
+    conventional in-repository paths owned by this checkout's CMake cache.
   * The default wrapper interface file is "src/wrap_interface.i". If it is
     missing, wrapper generation is auto-disabled unless you pass a valid
     *_WRAPPER_INTERFACE_FILES or *_WRAPPER_AUTODISCOVER_INTERFACE_FILES option.
+  * If no local wrap checkout is found, CMake tries find_package(gtwrap)
+    before optionally initializing a declared wrap submodule.
+  * Wrapper checkout updates and submodule initialization are opt-in operations.
   * This script requires GNU getopt (standard on Debian/Ubuntu).
 USAGE
 }
@@ -247,13 +241,51 @@ info() { echo -e "\e[34m[INFO]\e[0m $*"; } # Print info
 warn() { echo -e "\e[33m[WARN]\e[0m $*"; } # Print warning
 trap 'echo -e "\e[31mBuild failed (line $LINENO).\e[0m"' ERR # Exit condition
 
+# Normalize the requested clean path and prove that an existing directory is a
+# conventional CMake build owned by the checkout in the current directory.
+validate_clean_build_path() {
+  local project_root_
+  local relative_buildpath_
+  local build_cache_
+  local cached_source_dir_
+
+  # Constrain recursive removal to one CMake build owned by this checkout.
+  project_root_="$(pwd -P)"
+  buildpath="$(realpath -m "$buildpath")"
+  relative_buildpath_="${buildpath#"${project_root_}/"}"
+  if [[ "$relative_buildpath_" == "$buildpath" ]]; then
+    die "--clean requires a build directory inside '${project_root_}'"
+  fi
+  case "$relative_buildpath_" in
+    build|build/*|build[^/]*|out/*) ;;
+    *)
+      die "--clean requires a conventional build path (build, build*, or out/*)"
+      ;;
+  esac
+
+  if [[ -e "$buildpath" ]]; then
+    build_cache_="${buildpath}/CMakeCache.txt"
+    [[ -f "$build_cache_" ]] ||
+      die "Refusing to clean a directory without a CMake cache: $buildpath"
+    cached_source_dir_="$(
+      sed -n 's/^CMAKE_HOME_DIRECTORY:INTERNAL=//p' "$build_cache_" |
+        tail -n 1
+    )"
+    [[ -n "$cached_source_dir_" ]] ||
+      die "CMake source marker is missing from '$build_cache_'"
+    cached_source_dir_="$(realpath -m "$cached_source_dir_")"
+    [[ "$cached_source_dir_" == "$project_root_" ]] ||
+      die "Refusing to clean a build owned by '$cached_source_dir_'"
+  fi
+}
+
 # --- argument parsing (GNU getopt) ---
 if ! command -v getopt > /dev/null 2>&1; then
   die "GNU getopt is required. On macOS: brew install gnu-getopt and adjust PATH."
 fi
 
 OPTIONS=B:j:rt:c:f:D:pmhNni
-LONGOPTIONS=buildpath:,jobs:,rebuild-only,type:,type-build:,checks,flagsCXX:,define:,python-wrap,matlab-wrap,gtwrap-root:,no-wrap-update,help,ninja-build,no-optim,skip-tests,clean,install,profile,toolchain:
+LONGOPTIONS=buildpath:,jobs:,rebuild-only,type:,type-build:,checks,flagsCXX:,define:,python-wrap,matlab-wrap,gtwrap-root:,wrap-update,no-wrap-update,wrap-submodule-init,no-wrap-submodule-init,help,ninja-build,no-optim,skip-tests,clean,install,profile,toolchain:,python-test-conda-env:,python-test-conda-prefix:,python-test-executable:,ctest-extra-args:
 PARSED=$(getopt -o "$OPTIONS" -l "$LONGOPTIONS" -- "$@") || { usage; exit 2; }
 eval set -- "$PARSED"
 
@@ -270,12 +302,19 @@ while true; do
     -p|--python-wrap)     python_wrap=true; shift ;;
     -m|--matlab-wrap)     matlab_wrap=true; shift ;;
         --gtwrap-root)    gtwrap_root="$2"; shift 2 ;;
+        --wrap-update)    wrap_update=true; shift ;;
         --no-wrap-update) wrap_update=false; shift ;;
+        --wrap-submodule-init) wrap_submodule_init=true; shift ;;
+        --no-wrap-submodule-init) wrap_submodule_init=false; shift ;;
     -i|--install)         install=true;    shift ;;
     -N|--ninja-build)     use_ninja=true;  shift ;;
     -n|--no-optim)        no_optim=true;   shift ;;
         --profile)        profiling=true;  shift ;;
         --toolchain)      toolchain_file="$2"; shift 2 ;;
+        --python-test-conda-env) python_test_conda_env="$2"; shift 2 ;;
+        --python-test-conda-prefix) python_test_conda_prefix="$2"; shift 2 ;;
+        --python-test-executable) python_test_executable="$2"; shift 2 ;;
+        --ctest-extra-args) ctest_extra_args="$2"; shift 2 ;;
         --clean)          clean_first=true; shift ;;
     -h|--help)            usage; exit 0 ;;
     --) shift; break ;;
@@ -310,14 +349,25 @@ fi
 if [[ -n "$gtwrap_root" && ! -d "$gtwrap_root" ]]; then
   die "GTWRAP root directory not found: $gtwrap_root"
 fi
+if [[ -n "$python_test_conda_env" && -n "$python_test_conda_prefix" ]]; then
+  die "Use only one of --python-test-conda-env or --python-test-conda-prefix"
+fi
+if [[ -n "$python_test_conda_prefix" && ! -d "$python_test_conda_prefix" ]]; then
+  die "Python test conda prefix not found: $python_test_conda_prefix"
+fi
+if [[ -n "$python_test_executable" && ! -x "$python_test_executable" ]]; then
+  die "Python test executable is not executable: $python_test_executable"
+fi
+
+if [[ "$clean_first" == true && "$rebuild_only" == false ]]; then
+  validate_clean_build_path
+fi
 
 project_name="$(detect_project_name || true)"
-wrapper_interface_override=false
 prepare_wrap_checkout=false
 
 if [[ "$rebuild_only" == false && ( "$python_wrap" == true || "$matlab_wrap" == true ) ]]; then
   if has_wrapper_interface_override; then
-    wrapper_interface_override=true
     prepare_wrap_checkout=true
   elif [[ -f "src/wrap_interface.i" ]]; then
     prepare_wrap_checkout=true
@@ -331,7 +381,6 @@ if [[ "$rebuild_only" == false && ( "$python_wrap" == true || "$matlab_wrap" == 
 fi
 
 if [[ "$rebuild_only" == false && "$prepare_wrap_checkout" == true ]]; then
-  init_wrap_submodule_if_needed "$PWD"
   if [[ -z "$gtwrap_root" ]]; then
     gtwrap_root="$(detect_wrap_root || true)"
   fi
@@ -345,39 +394,60 @@ command -v cmake >/dev/null 2>&1 || die "cmake not found"
 if [[ "$use_ninja" == true ]]; then
   command -v ninja >/dev/null 2>&1 || die "Requested Ninja but 'ninja' not found"
 fi
+cmake_version_line="$(cmake --version | head -n1)"
+cmake_version="${cmake_version_line#cmake version }"
+generator_label="$([[ "${use_ninja}" == true ]] && echo Ninja || echo 'Unix Makefiles')"
+if [[ "${rebuild_only}" == true ]]; then
+  cached_generator="$(cache_get_value "${buildpath}/CMakeCache.txt" CMAKE_GENERATOR || true)"
+  [[ -z "${cached_generator}" ]] || generator_label="${cached_generator}"
+fi
 
 # Print info
+info "CMake version      : ${cmake_version}"
 info "Buildpath          : $buildpath"
 info "Jobs               : $jobs"
 info "Build Type         : $cmake_bt"
 info "Extra CXX flags    : ${CXX_FLAGS:-<none>}"
 info "Extra CMake defines: ${cmake_defines[*]:-<none>}"
+info "Extra CTest args   : ${ctest_extra_args:-<none>}"
 info "Python wrapper     : $python_wrap"
 info "MATLAB wrapper     : $matlab_wrap"
 info "Detected project   : ${project_name:-<unknown>}"
 info "GTWRAP root        : ${gtwrap_root:-<auto>}"
-info "GTWRAP auto-update : $wrap_update (branch: $wrap_branch)"
-info "Generator          : $([[ "$use_ninja" == true ]] && echo Ninja || echo 'Unix Makefiles')"
+info "GTWRAP update      : $wrap_update (branch: $wrap_branch)"
+info "GTWRAP submodule   : $wrap_submodule_init"
+info "Generator          : ${generator_label}"
 info "Profiling build    : $profiling"
 info "Toolchain file     : ${toolchain_file:-<none>}"
+info "Python test conda  : ${python_test_conda_env:-${python_test_conda_prefix:-<none>}}"
+info "Python test exe    : ${python_test_executable:-<auto>}"
 info "Run tests          : $run_tests"
 info "Install after build: $install"
+
+if [[ "$rebuild_only" == false && -d "$buildpath" && "$clean_first" == false ]]; then
+  warn "Reusing existing build dir '$buildpath'. Use --clean for cross-machine/config portability checks."
+fi
 
 sleep 0.2
 
 # --- Configure ---
 if [[ "$rebuild_only" == false ]]; then
-  if [[ "$clean_first" == true && -d "$buildpath" ]]; then
-    info "Removing existing build dir '$buildpath'"
-    rm -rf -- "$buildpath"
+  if [[ "$clean_first" == true ]]; then
+    # Revalidate at the destructive boundary in case the path or cache changed
+    # while wrapper prerequisites were being prepared.
+    validate_clean_build_path
+    if [[ -d "$buildpath" ]]; then
+      info "Removing existing build dir '$buildpath'"
+      rm -rf -- "$buildpath"
+    fi
   fi
 
   cmake_args=(
     -S .
     -B "$buildpath"
     "-DCMAKE_BUILD_TYPE=$cmake_bt"
-    "-DCMAKE_CXX_FLAGS=$CXX_FLAGS"
-    "-DCMAKE_C_FLAGS=$CXX_FLAGS"
+    "-DEXTRA_CXX_FLAGS=$CXX_FLAGS"
+    "-DEXTRA_C_FLAGS=$CXX_FLAGS"
     -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
   )
   [[ "$use_ninja"  == true ]] && cmake_args+=( -G Ninja )
@@ -402,16 +472,32 @@ if [[ "$rebuild_only" == false ]]; then
       cmake_args+=( "-DGTWRAP_ROOT_DIR=$gtwrap_root" )
     fi
   fi
-  if [[ "$prepare_wrap_checkout" == true && -n "$gtwrap_root" ]]; then
+  if [[ "$prepare_wrap_checkout" == true ]]; then
     if [[ "$wrap_update" == true ]]; then
-      cmake_args+=( "-DGTWRAP_BRANCH=$wrap_branch" -DGTWRAP_SYNC_TO_MASTER=ON )
+      cmake_args+=(
+        "-DGTWRAP_BRANCH=$wrap_branch"
+        -DGTWRAP_MAINTENANCE_UPDATE=ON
+        -DGTWRAP_SYNC_TO_MASTER=ON
+      )
     else
-      cmake_args+=( -DGTWRAP_SYNC_TO_MASTER=OFF )
+      cmake_args+=(
+        -DGTWRAP_MAINTENANCE_UPDATE=OFF
+        -DGTWRAP_SYNC_TO_MASTER=OFF
+      )
     fi
+    if [[ "$wrap_submodule_init" == true ]]; then
+      cmake_args+=( -DGTWRAP_INIT_SUBMODULE_IF_MISSING=ON )
+    else
+      cmake_args+=( -DGTWRAP_INIT_SUBMODULE_IF_MISSING=OFF )
+    fi
+    cmake_args+=( -DGTWRAP_ADD_SUBMODULE_IF_MISSING=OFF )
   fi
   [[ "$no_optim"   == true ]] && cmake_args+=( -DNO_OPTIMIZATION=ON )
   [[ "$profiling"  == true ]] && cmake_args+=( -DENABLE_PROFILING=ON )
   [[ -n "$toolchain_file" ]] && cmake_args+=( "-DCMAKE_TOOLCHAIN_FILE=$toolchain_file" )
+  [[ -n "$python_test_conda_env" ]] && cmake_args+=( "-DPYTHON_TEST_CONDA_ENV=$python_test_conda_env" )
+  [[ -n "$python_test_conda_prefix" ]] && cmake_args+=( "-DPYTHON_TEST_CONDA_PREFIX=$python_test_conda_prefix" )
+  [[ -n "$python_test_executable" ]] && cmake_args+=( "-DPYTHON_TEST_EXECUTABLE=$python_test_executable" )
   [[ ${#cmake_defines[@]} -gt 0 ]] && cmake_args+=( "${cmake_defines[@]}" )
 
   info "Configuring with CMake...\n"
@@ -429,7 +515,13 @@ if [[ "$python_wrap" == true && -n "$project_name" ]]; then
   python_target="$(cache_get_value "$cache_file" "${project_name}_PYTHON_WRAPPER_TARGET" || true)"
   [[ -z "$python_target" ]] && python_target="${project_name}_py"
   target_help_output="$(cmake --build "$buildpath" --target help 2>/dev/null || true)"
-  if awk -v target="${python_target}" '$1 == "..." && $2 == target { found=1; exit } END { exit(found ? 0 : 1) }' <<<"${target_help_output}"; then
+  if awk -v target="${python_target}" '
+      ($1 == "..." && $2 == target) || $1 == target ":" {
+        found=1
+        exit
+      }
+      END { exit(found ? 0 : 1) }
+    ' <<<"${target_help_output}"; then
     info "Ensuring Python wrapper target '${python_target}' is built..."
     cmake --build "$buildpath" --parallel "$jobs" --target "${python_target}"
   else
@@ -440,7 +532,12 @@ fi
 # --- Test ---
 if [[ "$run_tests" == true || "$install" == true ]]; then
   info "\nRunning tests..."
-  ctest --test-dir "$buildpath" --output-on-failure -j "$jobs"
+  ctest_args=(--test-dir "$buildpath" --output-on-failure -j "$jobs")
+  if [[ -n "$ctest_extra_args" ]]; then
+    IFS=' ' read -r -a parsed_ctest_extra_args <<< "$ctest_extra_args"
+    ctest_args+=("${parsed_ctest_extra_args[@]}")
+  fi
+  ctest "${ctest_args[@]}"
 fi
 
 # --- Install ---

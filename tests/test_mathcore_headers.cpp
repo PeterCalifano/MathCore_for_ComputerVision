@@ -4,6 +4,7 @@
 #include <mathcore/interpolation/interpolator.h>
 #include <mathcore/linalg/vector_operations.h>
 #include <mathcore/linalg/validation.h>
+#include <mathcore/logging/logger.h>
 #include <mathcore/mathcore.h>
 #include <mathcore/random/vector_sampling.h>
 #include <mathcore/rotations/quaternion.h>

@@ -9,7 +9,7 @@
 * **`-u`**: treat unset variables as errors (catches typos/undefined vars).
 * **`-o pipefail`**: a pipeline fails if any command fails, not just the last.
 
-**`IFS=$'\n\t'`**
+**Narrowed shell field separators**
 
 * Narrows the word-splitting delimiters to newline/tab (safer for paths with spaces).
 
@@ -105,10 +105,10 @@ The script now uses **GNU `getopt`** to support:
   The script forwards this as:
   `-D<project>_GTWRAP_ROOT_DIR=<dir>` when the project name is detected, otherwise `-DGTWRAP_ROOT_DIR=<dir>`.
 
-* **`--no-wrap-update`**
-  Disables automatic update of local wrap checkout. By default, wrapper builds
-  auto-detect `./wrap`, `./lib/wrap`, and `../wrap`, then update to latest
-  `origin/master` (including detached/tag checkouts).
+* **`--wrap-update` / `--no-wrap-update`**
+  Wrapper checkout updates are disabled by default. `--wrap-update` explicitly
+  advances a resolved local checkout to `origin/master`; the negative form
+  retains the default read-only behavior.
 
 * **`-i, --install`**
   After a successful build (and tests), runs the `install` target.
@@ -295,16 +295,15 @@ These are configured through `-D/--define` and live in CMake (not dedicated `bui
 
 ## 8) Wrapper packaging notes
 
-* Python package metadata is owned by `python/pyproject.toml.in` and configured into `python/pyproject.toml` when Python wrapping is enabled.
-* The optional `python/setup.py.in` augments source-package installation behavior without duplicating package metadata.
+* Python package metadata is owned by `python/pyproject.toml.in` and configured into `<build>/python/pyproject.toml` when Python wrapping is enabled.
+* `python/setup.py.in` is configured into the same build-owned package tree.
 * `python/<project>/__init__.py` is the public entrypoint and exports `HAS_WRAPPER`.
-* CMake updates `python/<project>/_wrapper_build.py` so the source package can resolve the latest requested wrapper build.
-* Missing `python/<project>/__init__.py` or `python/pyproject.toml.in` no longer blocks wrapper builds in the template: CMake generates minimal fallbacks when needed.
+* CMake writes `<build>/python/<project>/_wrapper_build.py` so the build-owned package can resolve the latest requested wrapper build.
+* Missing `python/<project>/__init__.py` or `python/pyproject.toml.in` does not block wrapper builds: CMake generates minimal build-tree fallbacks when needed.
 * Supported install paths are:
 
   ```bash
-  cd python
-  python -m pip install .
+  python -m pip install build/python
   ```
 
   ```bash

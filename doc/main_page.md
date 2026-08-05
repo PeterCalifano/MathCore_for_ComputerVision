@@ -1,61 +1,37 @@
-# mathcore_for_cv {#mainpage}
+# MathCore for Computer Vision {#mainpage}
 
-See the [README](../../README.md) for full usage documentation, or read on for the condensed reference.
+MathCore is a header-only C++20 Eigen library for linear algebra, rotations,
+interpolation, random sampling, and dependency-free component logging. The
+public CMake/package identity is `mathcore_for_cv`.
 
-## Installation
-
-```bash
-git clone <repo-url> my_project && cd my_project
-./build_lib.sh -t release -i      # build + install to ./install
-```
-
-## Common Build Toggles
+## Build and test
 
 ```bash
-# Enable CUDA + NVCC optimization toggles
-./build_lib.sh -D ENABLE_CUDA=ON -D CUDA_ENABLE_FMAD=ON -D CUDA_ENABLE_EXTRA_DEVICE_VECTORIZATION=ON
-
-# Enable oneTBB and explicit SIMD/FMA
-./build_lib.sh -D ENABLE_TBB=ON -D CPU_ENABLE_SIMD=ON -D CPU_SIMD_LEVEL=avx2 -D CPU_ENABLE_FMA=ON
-
-# Disable native tuning for portable binaries
-./build_lib.sh -D CPU_ENABLE_NATIVE_TUNING=OFF
+./build_lib.sh -N
+ctest --test-dir build --output-on-failure
 ```
 
-## Wrapper Build
+## Optional capabilities
 
 ```bash
-# Python wrapper
-./build_lib.sh -p
+# CUDA-aware configuration
+./build_lib.sh -N -D ENABLE_CUDA=ON
 
-# Python + MATLAB wrappers
-./build_lib.sh -p -m
+# oneTBB and explicit SIMD/FMA
+./build_lib.sh -N -D ENABLE_TBB=ON \
+  -D CPU_ENABLE_SIMD=ON -D CPU_SIMD_LEVEL=avx2 -D CPU_ENABLE_FMA=ON
 
-# Use a local wrap checkout instead of installed gtwrap
-./build_lib.sh -p --gtwrap-root /path/to/wrap
+# Python and MATLAB wrappers
+./build_lib.sh -N -p
+MATLAB_ROOT_DIR=/usr/local/MATLAB/R2024b ./build_lib.sh -N -m
 ```
 
-Install Python package manually from the source Python package:
-
-```bash
-cd python
-python -m pip install .
-```
-
-## Example usage (assuming installation worked)
+## Downstream CMake
 
 ```cmake
-set(mathcore_for_cv_DIR "/path/to/install/lib/cmake/mathcore_for_cv")
 find_package(mathcore_for_cv REQUIRED)
 target_link_libraries(my_target PRIVATE mathcore_for_cv::mathcore_for_cv)
 ```
 
-See `examples/template_consumer_project/` for a complete downstream CMake project.
-
-## Scaffold Notes
-
-This repository is aligned with the current fresh-init template layout.
-The placeholder C++ sources live under `src/template_src/`, `src/template_src_kernels/`,
-`src/wrapped_impl/`, and `src/bin/` and can be replaced as the real implementation lands.
-
-Full details in `README.md`.
+See the repository `README.md` for versioning, packaging, wrapper-maintenance,
+logger, and devcontainer contracts.
