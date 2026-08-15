@@ -14,7 +14,7 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "RelWithDebInfo",
         "ENABLE_TESTS": "OFF",
-        "ENABLE_CUDA": "OFF",
+        "mathcore_for_cv_ENABLE_CUDA": "OFF",
         "ENABLE_OPENGL": "OFF",
         "BUILD_DOC_HTML": "ON",
         "BUILD_DOC_XML": "ON",

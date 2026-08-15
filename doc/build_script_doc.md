@@ -47,7 +47,8 @@ The script now uses **GNU `getopt`** to support:
 ### Build layout & performance
 
 * **`-B, --buildpath <dir>`**
-  Where to generate the build tree. Default: `./build`.
+  Where to generate the build tree. Relative paths are resolved from the
+  checkout containing `build_lib.sh`; the default is `<checkout>/build`.
   *Example*: `-B out/debug`
 
 * **`-j, --jobs <N>`**
@@ -81,13 +82,14 @@ The script now uses **GNU `getopt`** to support:
 * **`-D, --define <VAR=VAL>`**
   Pass extra CMake cache definitions (repeatable).
   Example:
-  `-D ENABLE_CUDA=ON -D CUDA_ENABLE_FMAD=ON -D ENABLE_TBB=ON`.
+  `-D mathcore_for_cv_ENABLE_CUDA=ON -D CUDA_ENABLE_FMAD=ON -D ENABLE_TBB=ON`.
 
 * **`-n, --no-optim`**
   Sets `-DNO_OPTIMIZATION=ON` in the CMake cache. Your toolchain/CMakeLists can use this to toggle optimizer knobs (e.g., turn off vectorization or special CPU flags independent of `CMAKE_BUILD_TYPE`).
 
 * **`--toolchain <file>`**
   Pass a CMake toolchain file: `-DCMAKE_TOOLCHAIN_FILE=<file>`.
+  A relative file is resolved from the MathCore checkout.
   Example: `--toolchain cmake/toolchains/clang.cmake`.
 
 * **`-p, --python-wrap`**
@@ -102,6 +104,7 @@ The script now uses **GNU `getopt`** to support:
 
 * **`--gtwrap-root <dir>`**
   Pins wrapper generation to a local wrap checkout.
+  A relative directory is resolved from the MathCore checkout.
   The script forwards this as:
   `-D<project>_GTWRAP_ROOT_DIR=<dir>` when the project name is detected, otherwise `-DGTWRAP_ROOT_DIR=<dir>`.
 
@@ -109,6 +112,10 @@ The script now uses **GNU `getopt`** to support:
   Wrapper checkout updates are disabled by default. `--wrap-update` explicitly
   advances a resolved local checkout to `origin/master`; the negative form
   retains the default read-only behavior.
+
+* **`--wrap-submodule-init` / `--no-wrap-submodule-init`**
+  Explicitly permits initialization only when `.gitmodules` already declares
+  MathCore's wrapper path. It never creates a submodule declaration.
 
 * **`-i, --install`**
   After a successful build (and tests), runs the `install` target.
@@ -135,7 +142,7 @@ The script now uses **GNU `getopt`** to support:
 
 **Generator‑agnostic build**
 
-* **Configure**: `cmake -S . -B <dir> [args...]`
+* **Configure**: `cmake -S <checkout> -B <dir> [args...]`
   Uses arrays and proper quoting to avoid word splitting.
 * **Build**: `cmake --build <dir> --parallel <jobs>`
   Works with both Makefiles and Ninja.
@@ -160,7 +167,8 @@ The script now uses **GNU `getopt`** to support:
 2. **Removed duplicate `make`**: your script invoked `make` twice in a row; that’s gone.
 3. **Unified build interface**: replaced direct `make` with `cmake --build` and `ctest`, so switching generators is seamless.
 4. **Test policy**: tests are on by default; **Release** hard‑enables them. You can override in CI by using non‑Release or `--skip-tests` (except in Release).
-5. **`--clean`**: quick way to delete the build dir before configure. You can still manually `rm -rf build` if you prefer.
+5. **`--clean`**: deletes only a conventional in-checkout build whose CMake
+   cache proves ownership by this exact checkout.
 6. **Robust quoting & arrays**: all user‑provided flags/paths are quoted and passed as array elements to prevent word splitting and globbing bugs.
 7. **Safer shell**: `set -Eeuo pipefail`, narrowed `IFS`, and an `ERR` trap make failures noisier and earlier.
 8. **Clear logging**: consistent `[INFO]` lines and a compact error banner improve CI readability.
@@ -201,10 +209,10 @@ These are configured through `-D/--define` and live in CMake (not dedicated `bui
 
 ### CUDA architecture detection
 
-* If `CUDA_ARCHITECTURES` is set, the template uses it directly.
-* Else if `CMAKE_CUDA_ARCHITECTURES` is set, the template uses it directly.
-* Else on `x86_64`/`amd64`, the template requires a working `nvidia-smi` and fails fast if it is missing, fails, or returns malformed data.
-* Else on `aarch64`/`arm64`, the template tries `nvidia-smi` first and then falls back to native Jetson/Tegra markers:
+* If `CUDA_ARCHITECTURES` is set, MathCore uses it directly.
+* Else if `CMAKE_CUDA_ARCHITECTURES` is set, MathCore uses it directly.
+* Else on `x86_64`/`amd64`, MathCore requires a working `nvidia-smi` and fails fast if it is missing, fails, or returns malformed data.
+* Else on `aarch64`/`arm64`, MathCore tries `nvidia-smi` first and then falls back to native Jetson/Tegra markers:
   * Xavier / `tegra194` -> `72`
   * Orin / `tegra234` -> `87`
   * Thor / `tegra264` -> `101`
@@ -246,7 +254,9 @@ These are configured through `-D/--define` and live in CMake (not dedicated `bui
 * **CUDA build with explicit NVCC optimization toggles**:
 
   ```bash
-  ./build_lib.sh -D ENABLE_CUDA=ON -D CUDA_ENABLE_FMAD=ON -D CUDA_ENABLE_EXTRA_DEVICE_VECTORIZATION=ON
+  ./build_lib.sh -D mathcore_for_cv_ENABLE_CUDA=ON \
+    -D CUDA_ENABLE_FMAD=ON \
+    -D CUDA_ENABLE_EXTRA_DEVICE_VECTORIZATION=ON
   ```
 
 * **Python + MATLAB wrappers using installed gtwrap**:

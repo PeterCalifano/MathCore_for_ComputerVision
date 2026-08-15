@@ -8,6 +8,8 @@ set -Eeuo pipefail
 IFS=$'\n\t' # Narrows word splitting to newlines and tabs (safe with spaces)
 
 # --- Defaults ---
+script_path="$(realpath -- "${BASH_SOURCE[0]}")"
+project_root="$(dirname "${script_path}")"
 buildpath="build"
 
 jobs="${JOBS:-$(command -v nproc >/dev/null 2>&1 && nproc || echo 4)}"
@@ -36,7 +38,7 @@ ctest_extra_args=""
 cmake_defines=()
 
 detect_project_name() {
-  local _cmakelists="CMakeLists.txt"
+  local _cmakelists="${project_root}/CMakeLists.txt"
   local _name=""
   if [[ -f "$_cmakelists" ]]; then
     _name="$(sed -nE 's/^[[:space:]]*set[[:space:]]*[(][[:space:]]*project_name[[:space:]]+"?([^" )]+)"?.*/\1/p' "$_cmakelists" | head -n1)"
@@ -109,7 +111,10 @@ warn_python_wrapper_absent() {
 
 detect_wrap_root() {
   local _candidate
-  for _candidate in "./wrap" "./lib/wrap" "../wrap"; do
+  for _candidate in \
+    "${project_root}/wrap" \
+    "${project_root}/lib/wrap" \
+    "${project_root}/../wrap"; do
     if [[ -f "${_candidate}/cmake/PybindWrap.cmake" ]]; then
       (cd "${_candidate}" && pwd -P)
       return 0
@@ -118,61 +123,13 @@ detect_wrap_root() {
   return 1
 }
 
-update_wrap_checkout() {
-  local _root="$1"
-  local _branch="$2"
-
-  if [[ ! -d "${_root}/.git" ]]; then
-    warn "wrap root '${_root}' is not a git checkout; skipping master update"
-    return 0
-  fi
-
-  if ! command -v git >/dev/null 2>&1; then
-    warn "git not found; skipping wrap checkout update"
-    return 0
-  fi
-
-  info "Updating wrap checkout '${_root}' to latest origin/${_branch}"
-  if ! git -C "${_root}" remote get-url origin >/dev/null 2>&1; then
-    warn "wrap checkout '${_root}' has no 'origin' remote; skipping update"
-    return 0
-  fi
-
-  if ! git -C "${_root}" fetch origin "${_branch}"; then
-    warn "failed to fetch origin/${_branch} for wrap checkout '${_root}'; continuing with local state"
-    return 0
-  fi
-  if ! git -C "${_root}" show-ref --verify --quiet "refs/remotes/origin/${_branch}"; then
-    warn "origin/${_branch} not found in wrap checkout '${_root}'; continuing with local state"
-    return 0
-  fi
-
-  if git -C "${_root}" show-ref --verify --quiet "refs/heads/${_branch}"; then
-    if ! git -C "${_root}" checkout "${_branch}"; then
-      warn "failed to checkout wrap branch '${_branch}'; continuing with local state"
-      return 0
-    fi
-  else
-    # Handle detached HEAD/tag clones by creating local branch from origin.
-    if ! git -C "${_root}" checkout -B "${_branch}" "origin/${_branch}"; then
-      warn "failed to create local wrap branch '${_branch}'; continuing with local state"
-      return 0
-    fi
-  fi
-
-  if ! git -C "${_root}" pull --ff-only origin "${_branch}"; then
-    warn "failed to fast-forward wrap branch '${_branch}'; continuing with local state"
-    return 0
-  fi
-}
-
 # Helper function to print instructions
 usage() {
   cat <<'USAGE'
 Usage: build_lib.sh [OPTIONS]
 
 Options:
-  -B, --buildpath <dir>       Build directory (default: ./build)
+  -B, --buildpath <dir>       Build directory (default: <checkout>/build)
   -j, --jobs <N>              Parallel build jobs (default: $(nproc or 4))
   -r, --rebuild-only          Skip CMake configure; build existing tree only
   -t, --type|--type-build <t> Build type: debug|release|relwithdebinfo|minsizerel
@@ -241,20 +198,18 @@ info() { echo -e "\e[34m[INFO]\e[0m $*"; } # Print info
 warn() { echo -e "\e[33m[WARN]\e[0m $*"; } # Print warning
 trap 'echo -e "\e[31mBuild failed (line $LINENO).\e[0m"' ERR # Exit condition
 
-# Normalize the requested clean path and prove that an existing directory is a
-# conventional CMake build owned by the checkout in the current directory.
+# Prove that an existing recursive-removal target is a conventional CMake build
+# owned by the checkout containing this script.
 validate_clean_build_path() {
-  local project_root_
   local relative_buildpath_
   local build_cache_
   local cached_source_dir_
 
   # Constrain recursive removal to one CMake build owned by this checkout.
-  project_root_="$(pwd -P)"
   buildpath="$(realpath -m "$buildpath")"
-  relative_buildpath_="${buildpath#"${project_root_}/"}"
+  relative_buildpath_="${buildpath#"${project_root}/"}"
   if [[ "$relative_buildpath_" == "$buildpath" ]]; then
-    die "--clean requires a build directory inside '${project_root_}'"
+    die "--clean requires a build directory inside '${project_root}'"
   fi
   case "$relative_buildpath_" in
     build|build/*|build[^/]*|out/*) ;;
@@ -274,7 +229,7 @@ validate_clean_build_path() {
     [[ -n "$cached_source_dir_" ]] ||
       die "CMake source marker is missing from '$build_cache_'"
     cached_source_dir_="$(realpath -m "$cached_source_dir_")"
-    [[ "$cached_source_dir_" == "$project_root_" ]] ||
+    [[ "$cached_source_dir_" == "$project_root" ]] ||
       die "Refusing to clean a build owned by '$cached_source_dir_'"
   fi
 }
@@ -321,6 +276,20 @@ while true; do
      *) die "Unknown option: $1" ;;
   esac
 done
+
+# Resolve all helper-owned paths against this checkout, independent of the
+# caller's working directory.
+if [[ "$buildpath" == /* ]]; then
+  buildpath="$(realpath -m -- "$buildpath")"
+else
+  buildpath="$(realpath -m -- "${project_root}/${buildpath}")"
+fi
+if [[ -n "$toolchain_file" && "$toolchain_file" != /* ]]; then
+  toolchain_file="$(realpath -m -- "${project_root}/${toolchain_file}")"
+fi
+if [[ -n "$gtwrap_root" && "$gtwrap_root" != /* ]]; then
+  gtwrap_root="$(realpath -m -- "${project_root}/${gtwrap_root}")"
+fi
 
 # --- normalize & validate build type ---
 bt="${build_type,,}"
@@ -369,7 +338,7 @@ prepare_wrap_checkout=false
 if [[ "$rebuild_only" == false && ( "$python_wrap" == true || "$matlab_wrap" == true ) ]]; then
   if has_wrapper_interface_override; then
     prepare_wrap_checkout=true
-  elif [[ -f "src/wrap_interface.i" ]]; then
+  elif [[ -f "${project_root}/src/wrap_interface.i" ]]; then
     prepare_wrap_checkout=true
   else
     if [[ -n "$project_name" ]]; then
@@ -383,9 +352,6 @@ fi
 if [[ "$rebuild_only" == false && "$prepare_wrap_checkout" == true ]]; then
   if [[ -z "$gtwrap_root" ]]; then
     gtwrap_root="$(detect_wrap_root || true)"
-  fi
-  if [[ -n "$gtwrap_root" && "$wrap_update" == true ]]; then
-    update_wrap_checkout "$gtwrap_root" "$wrap_branch"
   fi
 fi
 
@@ -443,7 +409,7 @@ if [[ "$rebuild_only" == false ]]; then
   fi
 
   cmake_args=(
-    -S .
+    -S "$project_root"
     -B "$buildpath"
     "-DCMAKE_BUILD_TYPE=$cmake_bt"
     "-DEXTRA_CXX_FLAGS=$CXX_FLAGS"
@@ -490,7 +456,6 @@ if [[ "$rebuild_only" == false ]]; then
     else
       cmake_args+=( -DGTWRAP_INIT_SUBMODULE_IF_MISSING=OFF )
     fi
-    cmake_args+=( -DGTWRAP_ADD_SUBMODULE_IF_MISSING=OFF )
   fi
   [[ "$no_optim"   == true ]] && cmake_args+=( -DNO_OPTIMIZATION=ON )
   [[ "$profiling"  == true ]] && cmake_args+=( -DENABLE_PROFILING=ON )

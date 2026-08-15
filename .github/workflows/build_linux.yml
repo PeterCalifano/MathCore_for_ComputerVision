@@ -92,7 +92,7 @@ jobs:
             -DCMAKE_BUILD_TYPE="${BUILD_TYPE}" \
             -DENABLE_TESTS=ON \
             -DENABLE_TBB="${ENABLE_TBB}" \
-            -DENABLE_CUDA=OFF \
+            -Dmathcore_for_cv_ENABLE_CUDA=OFF \
             -DENABLE_OPENGL=OFF \
             -DCPU_ENABLE_NATIVE_TUNING=OFF \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
@@ -103,6 +103,11 @@ jobs:
 
       - name: Test
         run: ctest --test-dir "${BUILD_DIR}" --output-on-failure --parallel 2 --no-tests=error
+
+      - name: Validate CMake configuration and package lookup
+        run: |
+          ./tests/scripts/check_cmake_option_aliases.sh
+          ./tests/scripts/check_installed_package_lookup.sh
 
       - name: Show ccache stats
         if: always()

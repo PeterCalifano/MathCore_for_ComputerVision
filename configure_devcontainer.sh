@@ -2,7 +2,8 @@
 # Configure MathCore's base image and optional CUDA devcontainer feature.
 set -Eeuo pipefail
 
-readonly ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+readonly ROOT_DIR
 readonly DEVCONTAINER_DIR="${ROOT_DIR}/.devcontainer"
 readonly DEVCONTAINER_JSON="${DEVCONTAINER_DIR}/devcontainer.json"
 readonly DOCKERFILE="${DEVCONTAINER_DIR}/Dockerfile"

@@ -3,6 +3,14 @@ cmake_minimum_required(VERSION 3.15 FATAL_ERROR)
 if(POLICY CMP0144)
   cmake_policy(SET CMP0144 NEW)
 endif()
+
+# Determine ownership before project() because language selection must remain
+# isolated when MathCore is composed through add_subdirectory().
+set(BUILD_AS_MAIN_PROJECT OFF)
+if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+  set(BUILD_AS_MAIN_PROJECT ON)
+endif()
+
 set(PROJECT_PYTHON_VERSION 3.12)
 set(MATLAB_DEFAULT_RELEASE "R2023b")
 
@@ -19,27 +27,11 @@ set(PROJECT_MAINTAINER_NAME "Pietro Califano" CACHE STRING "Project maintainer n
 set(PROJECT_MAINTAINER_EMAIL "petercalifano.gs@gmail.com" CACHE STRING "Project maintainer email")
 set(PROJECT_LICENSE "MIT" CACHE STRING "Project SPDX license identifier")
 
-# Set install default directory if not specified
+# Preserve MathCore's checkout-local default before project() initializes the
+# platform-wide CMake default. Explicit caller prefixes still take precedence.
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)
   set(CMAKE_INSTALL_PREFIX ${CMAKE_SOURCE_DIR}/install CACHE PATH "Install path" FORCE)
 endif()
-
-# Major options
-option(ENABLE_CUDA "Enable CUDA" OFF)
-option(BUILD_SHARED_LIBS "Build libraries as shared" ON)
-include(cmake/HandleOpenMP.cmake)
-
-set(languages CXX)
-
-if (ENABLE_CUDA)
-    list(APPEND languages CUDA)
-endif()
-
-# Add cmake folder to path
-list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
-
-# Add git version handling
-include(cmake/HandleGitVersion.cmake)
 
 # Set version number
 set(PROJECT_VERSION_MAJOR 0)
@@ -50,13 +42,67 @@ set(PROJECT_VERSION_METADATA "")
 set(PROJECT_VERSION_CORE "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH}")
 
 # Resolve version: git --> VERSION file --> hardcoded defaults above
+include(cmake/HandleGitVersion.cmake)
 resolve_project_version()
 
+# Canonical cache names are project-scoped. Top-level aliases preserve legacy
+# build commands without consuming identically named parent-project options.
+function(_mathcore_migrate_bool_option_alias legacy_option canonical_option option_help)
+  if(NOT BUILD_AS_MAIN_PROJECT)
+    return()
+  endif()
+
+  get_property(_legacy_alias_is_cached CACHE "${legacy_option}" PROPERTY TYPE SET)
+  if(NOT _legacy_alias_is_cached)
+    return()
+  endif()
+
+  # Consume legacy input on every configure so ON-to-OFF transitions update an
+  # existing build tree instead of leaving its canonical value stale.
+  set(_legacy_alias_value "${${legacy_option}}")
+  set("${canonical_option}" "${_legacy_alias_value}" CACHE BOOL "${option_help}" FORCE)
+  unset("${legacy_option}" CACHE)
+endfunction()
+
+_mathcore_migrate_bool_option_alias(
+  PROJECT_METADATA_ONLY mathcore_for_cv_METADATA_ONLY
+  "Configure only project identity and version metadata")
+_mathcore_migrate_bool_option_alias(
+  ENABLE_CUDA mathcore_for_cv_ENABLE_CUDA
+  "Enable CUDA support")
+
+option(mathcore_for_cv_METADATA_ONLY
+       "Configure only project identity and version metadata" OFF)
+option(mathcore_for_cv_ENABLE_CUDA "Enable CUDA support" OFF)
+
+# Existing MathCore modules consume this directory-local spelling. It shadows,
+# but never rewrites, an application-owned ENABLE_CUDA cache entry.
+set(ENABLE_CUDA "${mathcore_for_cv_ENABLE_CUDA}")
+
+if(mathcore_for_cv_METADATA_ONLY)
+  set(languages NONE)
+else()
+  set(languages CXX)
+  if(ENABLE_CUDA)
+    list(APPEND languages CUDA)
+  endif()
+endif()
+
 project(${project_name}
-        VERSION ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH}
+        VERSION ${PROJECT_VERSION_CORE}
         DESCRIPTION "${project_description}"
         HOMEPAGE_URL "${project_homepage_url}"
         LANGUAGES ${languages})
+
+if(mathcore_for_cv_METADATA_ONLY)
+  return()
+endif()
+
+option(BUILD_SHARED_LIBS "Build libraries as shared" ON)
+include(cmake/HandleOpenMP.cmake)
+
+# Add cmake folder to path.
+list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
 # Write VERSION into the build tree by default. Source-tree mutation is opt-in
 # so ordinary configures and CI probes leave the checkout clean.
@@ -66,12 +112,6 @@ if(WRITE_SOURCE_VERSION_FILE)
 endif()
 write_build_VERSION_file()
 install(FILES "${PROJECT_BINARY_DIR}/VERSION" DESTINATION ".")
-
-# Define variable for build as subproject (compare source dir)
-set(BUILD_AS_MAIN_PROJECT ON)
-if(NOT CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
-  set(BUILD_AS_MAIN_PROJECT OFF)
-endif()
 
 # Define variable for namespacing (required to prevent global target clashes!)
 set(LIB_NAMESPACE "${PROJECT_NAME}")
@@ -272,21 +312,6 @@ handle_opengl(TARGET ${OPENGL_COMPILE_TARGET})
 include(cmake/HandleSubmodules.cmake)
 handle_submodules() # Automatically adds subdirectories in lib/ (and build them if CMakeLists.txt found)
 
-# Set the dependencies for the automated export
-set(EXPORT_TARGET_DEPS Eigen3) # TODO make automatic based on used packages
-
-if(ENABLE_CUDA)
-  list(APPEND EXPORT_TARGET_DEPS CUDAToolkit)
-endif()
-if (ENABLE_OPENGL)
-  list(APPEND EXPORT_TARGET_DEPS OpenGL)
-endif()
-if(ENABLE_TBB)
-  list(APPEND EXPORT_TARGET_DEPS TBB)
-endif()
-
-message(STATUS "Target dependencies: ${EXPORT_TARGET_DEPS}")
-
 #find_package( GTSAM 4.0 REQUIRED )
 #find_package( GTSAM_UNSTABLE REQUIRED)
 #find_package( sopengv )
@@ -477,136 +502,38 @@ endif()
 set(CPACK_GENERATOR "TGZ")
 set(CPACK_SOURCE_GENERATOR "TGZ")
 
-# VERSION is generated in the build tree so configured package metadata remains
-# authoritative even when the ignored source-tree fallback is stale. Stage that
-# exact file through CPack's private install prefix for binary and source TGZs.
-set(_cpack_stage_version_script
-    "${PROJECT_BINARY_DIR}/StagePackageVersion.cmake")
-configure_file(
-  "${CMAKE_CURRENT_SOURCE_DIR}/cmake/StagePackageVersion.cmake.in"
-  "${_cpack_stage_version_script}"
-  @ONLY)
-if(CMAKE_VERSION VERSION_LESS "3.16")
-  set(CPACK_INSTALL_SCRIPT "${_cpack_stage_version_script}")
-else()
-  list(APPEND CPACK_INSTALL_SCRIPTS "${_cpack_stage_version_script}")
-endif()
-
-# Preserve source-ignore regexes verbatim and anchor known generated outputs
-# beneath this checkout rather than matching adjacent directories. The ignored
-# source VERSION must not overwrite the generated file staged above.
+# Package the prepared source tree without claiming caller-owned CPack hooks.
+# Anchor deterministic generated outputs and the exact active build below their
+# physical paths so similarly named source directories remain package input.
 set(CPACK_VERBATIM_VARIABLES YES)
 set(_cpack_source_root_regex "${CMAKE_CURRENT_SOURCE_DIR}")
 string(
   REGEX REPLACE "([][+.*^$()|?\\\\])" "\\\\\\1"
   _cpack_source_root_regex "${_cpack_source_root_regex}")
-set(CPACK_SOURCE_IGNORE_FILES
+set(_cpack_binary_root_regex "${CMAKE_BINARY_DIR}")
+string(
+  REGEX REPLACE "([][+.*^$()|?\\\\])" "\\\\\\1"
+  _cpack_binary_root_regex "${_cpack_binary_root_regex}")
+list(APPEND CPACK_SOURCE_IGNORE_FILES
     "^${_cpack_source_root_regex}/(.*/)?\\.git(/|$)"
-    "^${_cpack_source_root_regex}/VERSION$"
-    "^${_cpack_source_root_regex}/install/"
+    "^${_cpack_source_root_regex}/(.*/)?\\.codex(/|$)"
+    "^${_cpack_source_root_regex}/CONTEXT\\.md$"
+    "^${_cpack_source_root_regex}/(.*/)?\\.mypy_cache/"
     "^${_cpack_source_root_regex}/(.*/)?\\.pytest_cache/"
     "^${_cpack_source_root_regex}/(.*/)?__pycache__/"
-    "^${_cpack_source_root_regex}/.*\\.py[cod]$")
-
-# Exclude the active nested binary tree and other nested CMake builds whose
-# caches prove that this exact checkout owns them. Directory names alone are
-# insufficient because paths such as tools/build_helpers may be real sources.
-get_filename_component(
-  _cpack_source_root_real
-  "${CMAKE_CURRENT_SOURCE_DIR}"
-  REALPATH)
-get_filename_component(
-  _cpack_binary_root_real
-  "${CMAKE_BINARY_DIR}"
-  REALPATH)
-file(
-  RELATIVE_PATH
-  _cpack_binary_relative_to_source
-  "${_cpack_source_root_real}"
-  "${_cpack_binary_root_real}")
-set(_cpack_owned_build_directories)
-if(NOT IS_ABSOLUTE "${_cpack_binary_relative_to_source}"
-    AND NOT "${_cpack_binary_relative_to_source}" MATCHES "^\\.\\.(/|$)"
-    AND NOT "${_cpack_binary_relative_to_source}" STREQUAL "")
-  list(APPEND
-    _cpack_owned_build_directories
-    "${CMAKE_BINARY_DIR}")
-endif()
-
-file(
-  GLOB_RECURSE
-  _cpack_cache_candidates
-  LIST_DIRECTORIES FALSE
-  "${CMAKE_CURRENT_SOURCE_DIR}/*/CMakeCache.txt")
-foreach(_cpack_cache_candidate IN LISTS _cpack_cache_candidates)
-  file(
-    RELATIVE_PATH
-    _cpack_cache_relative_to_source
-    "${CMAKE_CURRENT_SOURCE_DIR}"
-    "${_cpack_cache_candidate}")
-  if("${_cpack_cache_relative_to_source}" MATCHES "^install/")
-    continue()
-  endif()
-
-  set(_cpack_cache_is_within_owned_build FALSE)
-  foreach(_cpack_known_build IN LISTS _cpack_owned_build_directories)
-    file(
-      RELATIVE_PATH
-      _cpack_cache_relative_to_build
-      "${_cpack_known_build}"
-      "${_cpack_cache_candidate}")
-    if(NOT IS_ABSOLUTE "${_cpack_cache_relative_to_build}"
-        AND NOT "${_cpack_cache_relative_to_build}" MATCHES "^\\.\\.(/|$)")
-      set(_cpack_cache_is_within_owned_build TRUE)
-      break()
-    endif()
-  endforeach()
-  if(_cpack_cache_is_within_owned_build
-      OR NOT EXISTS "${_cpack_cache_candidate}")
-    continue()
-  endif()
-
-  file(
-    STRINGS
-    "${_cpack_cache_candidate}"
-    _cpack_cache_home_entries
-    REGEX "^CMAKE_HOME_DIRECTORY:INTERNAL="
-    LIMIT_COUNT 1)
-  if(NOT _cpack_cache_home_entries)
-    continue()
-  endif()
-
-  list(GET _cpack_cache_home_entries 0 _cpack_cache_home_entry)
-  string(REGEX MATCH
-    "^CMAKE_HOME_DIRECTORY:INTERNAL=(.*)$"
-    _cpack_cache_home_match
-    "${_cpack_cache_home_entry}")
-  set(_cpack_cache_home "${CMAKE_MATCH_1}")
-  get_filename_component(
-    _cpack_cache_home_real
-    "${_cpack_cache_home}"
-    REALPATH)
-  if(NOT "${_cpack_cache_home_real}" STREQUAL "${_cpack_source_root_real}")
-    continue()
-  endif()
-
-  get_filename_component(
-    _cpack_owned_build_directory
-    "${_cpack_cache_candidate}"
-    DIRECTORY)
-  list(APPEND
-    _cpack_owned_build_directories
-    "${_cpack_owned_build_directory}")
-endforeach()
-
-list(REMOVE_DUPLICATES _cpack_owned_build_directories)
-foreach(_cpack_owned_build_directory IN LISTS _cpack_owned_build_directories)
-  string(
-    REGEX REPLACE "([][+.*^$()|?\\\\])" "\\\\\\1"
-    _cpack_owned_build_regex "${_cpack_owned_build_directory}")
-  list(
-    APPEND
-    CPACK_SOURCE_IGNORE_FILES
-    "^${_cpack_owned_build_regex}(/|$)")
-endforeach()
+    "^${_cpack_source_root_regex}/build[^/]*/"
+    "^${_cpack_source_root_regex}/(.*/)?build(/|$)"
+    "^${_cpack_source_root_regex}/(.*/)?install[^/]*/"
+    "^${_cpack_source_root_regex}/(.*/)?codegen/"
+    "^${_cpack_source_root_regex}/(.*/)?slprj/"
+    "^${_cpack_source_root_regex}/(.*/)?[^/]+_ert_rtw(/|$)"
+    "^${_cpack_source_root_regex}/matlab/mex/"
+    "^${_cpack_source_root_regex}/.*\\.(mexa64|mexw64|mexmaci64)$"
+    "^${_cpack_source_root_regex}/.*\\.py[cod]$"
+    "^${_cpack_source_root_regex}/python/(build|dist)/"
+    "^${_cpack_source_root_regex}/python/[^/]+\\.egg-info/"
+    "^${_cpack_source_root_regex}/python/(setup\\.py|pyproject\\.toml)$"
+    "^${_cpack_source_root_regex}/python/[^/]+/_wrapper_build\\.py$"
+    "^${_cpack_source_root_regex}/python/.*\\.(so(\\..*)?|pyd|dylib|dll)$"
+    "^${_cpack_binary_root_regex}(/|$)")
 include(CPack)

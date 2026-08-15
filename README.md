@@ -44,6 +44,8 @@ ctest --test-dir build --output-on-failure
 ```
 
 `build_lib.sh --clean` accepts only conventional in-repository `build`, `build*`, or `out/*` paths. An existing directory must contain a CMake cache owned by this checkout.
+The helper resolves its source and relative paths from its own checkout, so it
+can be invoked safely from another working directory.
 
 ## Library layout
 
@@ -64,7 +66,8 @@ The root target auto-detects whether compiled sources exist. The current MathCor
 |---|---:|---|
 | `ENABLE_TESTS` | `ON` | Register CTest tests |
 | `ENABLE_PYTHON_TESTS` | `ON` | Register `test*.py` through pytest |
-| `ENABLE_CUDA` | `OFF` | Enable the CUDA language and interface flags |
+| `mathcore_for_cv_METADATA_ONLY` | `OFF` | Resolve project identity/version without product languages or targets |
+| `mathcore_for_cv_ENABLE_CUDA` | `OFF` | Enable the CUDA language and interface flags |
 | `ENABLE_TBB` | `OFF` | Enable oneTBB |
 | `ENABLE_OPENGL` | `OFF` | Enable OpenGL |
 | `mathcore_for_cv_BUILD_PROGRAMS` | `ON` | Build `src/bin` when top-level |
@@ -109,7 +112,11 @@ find_package(mathcore_for_cv REQUIRED)
 target_link_libraries(my_target PRIVATE mathcore_for_cv::mathcore_for_cv)
 ```
 
-The installed package exports Eigen and any enabled CUDA, TBB, or OpenGL dependency. Build-tree and installed `VERSION` metadata use the version resolved from Git tags, with the source-tree fallback used only when Git metadata is unavailable.
+The installed package resolves Eigen 3.4 as MathCore's public header
+dependency. Optional CUDA, TBB, and OpenGL configuration remains owned by the
+build that enabled it and is not reintroduced by the package config. Build-tree
+and installed `VERSION` metadata use the version resolved from Git tags, with
+the source-tree fallback used when Git metadata is unavailable.
 
 Create binary and source archives with:
 
@@ -118,7 +125,11 @@ cpack --config build-install/CPackConfig.cmake
 cpack --config build-install/CPackSourceConfig.cmake
 ```
 
-Both archives receive the authoritative build-generated `VERSION`; nested build trees and generated Python caches are excluded from source packages.
+Run `./generate_version.sh` before configuring a release package. Binary
+archives receive the configured build-tree `VERSION`; source archives package
+the synchronized source `VERSION` unchanged. Deterministic build, install,
+Python, MATLAB code-generation, MEX, and cache artifacts are excluded without
+replacing caller-owned CPack policy or scanning unrelated nested CMake caches.
 
 ## Python and MATLAB wrappers
 
@@ -137,13 +148,21 @@ MATLAB_ROOT_DIR=/usr/local/MATLAB/R2024b ./build_lib.sh -N -m
 
 Ordinary configuration never updates, initializes, or creates the wrapper checkout. `--wrap-update` and `--wrap-submodule-init` are explicit maintenance operations. Direct CMake callers must additionally grant `GTWRAP_MAINTENANCE_UPDATE=ON` before requesting synchronization.
 
-Python `setup.py`, `pyproject.toml`, the package copy, and `_wrapper_build.py` are generated only below the CMake build tree. Build a wheel from that configured directory:
+Python `setup.py`, `pyproject.toml`, the package copy, and `_wrapper_build.py`
+are generated only below the CMake build tree. Each configure reconstructs the
+staged package from stable sources so stale generated or native artifacts do
+not survive. Build a wheel from that configured directory:
 
 ```bash
 python -m pip wheel build/python --no-build-isolation --no-deps
 ```
 
-The wheel stages only the exact wrapper and project-owned shared runtimes declared by CMake, using loader-relative runtime paths. Checkout-only `_wrapper_build.py` metadata is not installed.
+The wheel stages only the exact wrapper and project-owned shared runtimes
+declared by CMake, using loader-relative runtime paths. Checkout-only
+`_wrapper_build.py` metadata is not installed. CMake Python and MATLAB install
+destinations stay relative to `CMAKE_INSTALL_PREFIX`. When installed gtwrap
+provides `include/gtwrap/matlab.h`, configuration copies it into a build-owned
+`wrap/matlab.h` compatibility path without modifying the installation.
 
 MATLAB library compatibility can be inspected without mutation:
 
@@ -175,6 +194,19 @@ The checked-in devcontainer uses Ubuntu 24.04, Python 3.12, and CUDA 12.9. Regen
 
 Docker and Podman GPU argument styles are supported. Standalone Dockerfile builds can request the CUDA apt setup with `--build-arg INSTALL_CUDA=on`; this is separate from the normal devcontainer feature path.
 
+Run the existing devcontainer image as a standalone CPU container, or request
+the repository's optional CUDA path explicitly:
+
+```bash
+./run_in_container.sh --no-gpu
+./run_in_container.sh --gpu -- nvidia-smi
+./run_in_container.sh --vscode --engine podman
+```
+
+The launcher preserves host ownership for repository files, forwards a live
+SSH agent when available in VS Code mode, and mounts an explicitly selected
+MATLAB installation read-only with `--matlab-root`.
+
 ## Tests and CI
 
 CTest is the common entry point. Catch2 cases receive the `catch2` label, and pytest files receive `python;pytest` labels.
@@ -183,6 +215,8 @@ CTest is the common entry point. Catch2 cases receive the `catch2` label, and py
 ctest --test-dir build --output-on-failure
 ctest --test-dir build --output-on-failure -L catch2
 ./tests/scripts/test_use_system_matlab_libraries.sh
+./tests/scripts/check_cmake_option_aliases.sh
+./tests/scripts/check_installed_package_lookup.sh
 ```
 
 GitHub workflows cover hosted Linux CPU builds, explicitly labeled self-hosted CUDA builds, and Doxygen/Pages generation. They use portable CPU flags; release artifacts intended for a particular host may re-enable native tuning explicitly.

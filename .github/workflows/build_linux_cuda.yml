@@ -59,7 +59,7 @@ jobs:
             -DCMAKE_BUILD_TYPE="${BUILD_TYPE}" \
             -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
             -DENABLE_TESTS=ON \
-            -DENABLE_CUDA=ON \
+            -Dmathcore_for_cv_ENABLE_CUDA=ON \
             -DENABLE_TBB="${ENABLE_TBB}" \
             -DENABLE_OPENGL=OFF \
             -DCPU_ENABLE_NATIVE_TUNING=OFF \

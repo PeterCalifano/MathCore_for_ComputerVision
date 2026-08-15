@@ -73,6 +73,40 @@ function(_resolve_python_install_root OUT_VAR)
     PARENT_SCOPE)
 endfunction()
 
+# Reconstruct a build-owned Python package from stable checkout inputs.
+function(_stage_python_package_sources SOURCE_DIRECTORY STAGING_DIRECTORY)
+  file(REMOVE_RECURSE "${STAGING_DIRECTORY}")
+  file(MAKE_DIRECTORY "${STAGING_DIRECTORY}")
+
+  if(NOT EXISTS "${SOURCE_DIRECTORY}")
+    return()
+  endif()
+
+  file(GLOB_RECURSE
+    _python_source_package_files
+    CONFIGURE_DEPENDS
+    LIST_DIRECTORIES FALSE
+    RELATIVE "${SOURCE_DIRECTORY}"
+    "${SOURCE_DIRECTORY}/*")
+  list(FILTER
+    _python_source_package_files
+    EXCLUDE REGEX
+      "(^|/)(_wrapper_build\\.py|__pycache__/.*|.*\\.py[co]|.*\\.so(\\..*)?|.*\\.(dylib|dll|pyd))$")
+
+  foreach(_python_source_package_file IN LISTS _python_source_package_files)
+    get_filename_component(
+      _python_source_package_subdir
+      "${_python_source_package_file}"
+      DIRECTORY)
+    file(MAKE_DIRECTORY
+      "${STAGING_DIRECTORY}/${_python_source_package_subdir}")
+    configure_file(
+      "${SOURCE_DIRECTORY}/${_python_source_package_file}"
+      "${STAGING_DIRECTORY}/${_python_source_package_file}"
+      COPYONLY)
+  endforeach()
+endfunction()
+
 # Configure one collision-safe staging operation for a Python extension.
 #
 # PYTHON_TARGET is the extension whose resolved filename reserves the package
@@ -326,33 +360,12 @@ function(configure_python_gtwrapper)
     CACHE INTERNAL
       "Resolved Python wrapper target name for the project." FORCE)
 
-  file(MAKE_DIRECTORY "${PROJECT_PYTHON_BUILD_PACKAGE_DIR}")
-
   # Stage stable package sources into the build tree while excluding stale
   # generated/import-cache artifacts that may exist in an older checkout.
-  if(EXISTS "${PROJECT_PYTHON_PACKAGE_DIR}")
-    file(GLOB_RECURSE
-      _python_source_package_files
-      CONFIGURE_DEPENDS
-      LIST_DIRECTORIES FALSE
-      RELATIVE "${PROJECT_PYTHON_PACKAGE_DIR}"
-      "${PROJECT_PYTHON_PACKAGE_DIR}/*")
-    list(FILTER
-      _python_source_package_files
-      EXCLUDE REGEX "(^|/)(_wrapper_build\\.py|__pycache__/.*|.*\\.pyc)$")
-    foreach(_python_source_package_file IN LISTS _python_source_package_files)
-      get_filename_component(
-        _python_source_package_subdir
-        "${_python_source_package_file}"
-        DIRECTORY)
-      file(MAKE_DIRECTORY
-        "${PROJECT_PYTHON_BUILD_PACKAGE_DIR}/${_python_source_package_subdir}")
-      configure_file(
-        "${PROJECT_PYTHON_PACKAGE_DIR}/${_python_source_package_file}"
-        "${PROJECT_PYTHON_BUILD_PACKAGE_DIR}/${_python_source_package_file}"
-        COPYONLY)
-    endforeach()
-  else()
+  _stage_python_package_sources(
+    "${PROJECT_PYTHON_PACKAGE_DIR}"
+    "${PROJECT_PYTHON_BUILD_PACKAGE_DIR}")
+  if(NOT EXISTS "${PROJECT_PYTHON_PACKAGE_DIR}")
     message(WARNING
       "Missing python package directory '${PROJECT_PYTHON_PACKAGE_DIR}'. "
       "Generating a minimal package in the build tree.")

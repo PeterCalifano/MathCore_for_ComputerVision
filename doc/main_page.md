@@ -15,7 +15,7 @@ ctest --test-dir build --output-on-failure
 
 ```bash
 # CUDA-aware configuration
-./build_lib.sh -N -D ENABLE_CUDA=ON
+./build_lib.sh -N -D mathcore_for_cv_ENABLE_CUDA=ON
 
 # oneTBB and explicit SIMD/FMA
 ./build_lib.sh -N -D ENABLE_TBB=ON \
