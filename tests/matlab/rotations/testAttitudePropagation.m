@@ -36,7 +36,7 @@ dQuat0 = [1.0; 0.0; 0.0; 0.0];
 dOmega0 = [0.1; 0.0; 1.0];
 dTorque = zeros(3, 1);
 dTimegrid = 0.0:0.1:2.0;
-objIntegrator = CRigidBodyDynamicsIntegrator(dInertia, CQuatKinematicsIntegrator());
+objIntegrator = CRigidBodyDynamicsIntegrator(dInertia);
 
 [dQuatSeq, dOmegaSeq] = objIntegrator.integrate(dTimegrid, dQuat0, dOmega0, dTorque, 0.1, 'rk4_rkmk4', true, 1.0);
 

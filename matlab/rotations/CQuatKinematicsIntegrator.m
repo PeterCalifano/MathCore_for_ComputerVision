@@ -1,8 +1,17 @@
 classdef CQuatKinematicsIntegrator < handle & matlab.mixin.Copyable
+    %% SIGNATURE
+    % objIntegrator = CQuatKinematicsIntegrator()
+    % -------------------------------------------------------------------------------------------------------------
     %% DESCRIPTION
     % Class containing methods to perform integration of quaternion kinematics (Hamilton quaternion
     % convention) using on-manifold or classical integration schemes. Additional utility methods are
     % provided (quaternion multiplication, normalization). Step methods are implemented as static methods.
+    % -------------------------------------------------------------------------------------------------------------
+    %% INPUT
+    % None.
+    % -------------------------------------------------------------------------------------------------------------
+    %% OUTPUT
+    % objIntegrator    (1,1) CQuatKinematicsIntegrator
     % -------------------------------------------------------------------------------------------------------------
     %% CHANGELOG
     % 14-07-2025    Pietro Califano, GPT o4-mini-high       First prototype implementation
@@ -10,9 +19,11 @@ classdef CQuatKinematicsIntegrator < handle & matlab.mixin.Copyable
     %                                                       add capability to work with constant, discrete and fcn 
     %                                                       handle angular velocity.
     % 16-07-2025    Pietro Califano                         Update integration
+    % 23-08-2026    Pietro Califano, Codex                  Extract corrected RKMK4 step into a stateless primitive.
+    % 24-08-2026    Pietro Califano, Codex                  Remove the redundant sampled-step adapter.
     % -------------------------------------------------------------------------------------------------------------
     %% DEPENDENCIES
-    % qCross function
+    % qCross, IntegrateQuaternionRKMK4Step
     % -------------------------------------------------------------------------------------------------------------
 
     properties
@@ -337,6 +348,29 @@ classdef CQuatKinematicsIntegrator < handle & matlab.mixin.Copyable
                                             fcnEvalOmegaAngVel, ...
                                             dTstamp, ...
                                             dDeltaTime)
+            %% SIGNATURE
+            % dQuatOut = IntegrStep_RKMK4(dQuat0, fcnEvalOmegaAngVel, dTstamp, dDeltaTime)
+            % -----------------------------------------------------------------------------------------------------
+            %% DESCRIPTION
+            % Sample a prescribed body-frame angular-velocity function at the classical RK4 nodes and advance one
+            % passive scalar-first Hamilton quaternion with the canonical stateless RKMK4 primitive.
+            % -----------------------------------------------------------------------------------------------------
+            %% INPUT
+            % dQuat0                 (4,1) double initial passive quaternion
+            % fcnEvalOmegaAngVel     function handle returning body-frame angular velocity [rad/s]
+            % dTstamp                (1,1) double step start epoch [s]
+            % dDeltaTime             (1,1) double positive integration step [s]
+            % -----------------------------------------------------------------------------------------------------
+            %% OUTPUT
+            % dQuatOut               (4,1) double propagated normalized quaternion
+            % -----------------------------------------------------------------------------------------------------
+            %% CHANGELOG
+            % 24-08-2026  Pietro Califano, Codex     Delegate directly to the stateless RKMK4 primitive.
+            % -----------------------------------------------------------------------------------------------------
+            %% DEPENDENCIES
+            % IntegrateQuaternionRKMK4Step
+            % -----------------------------------------------------------------------------------------------------
+
             arguments
                 dQuat0          (4,1) double {mustBeFinite}
                 fcnEvalOmegaAngVel   function_handle % Gives angular velocity at each time
@@ -378,49 +412,10 @@ classdef CQuatKinematicsIntegrator < handle & matlab.mixin.Copyable
             assert(all(isfinite(dOmegaStages), 'all'), ...
                 'ERROR: nan detected in integration step. Interpolant of angular velocity may have failed.');
 
-            % Integrate quanternion over the time step using the RK4 combination of angular velocity samples
-            dQuatOut = CQuatKinematicsIntegrator.IntegrStep_RKMK4_Samples(dQuat0, dOmegaStages, dDeltaTime);
+            % Delegate sampled Lie-group integration to the canonical
+            % code-generation-safe numerical primitive.
+            dQuatOut = IntegrateQuaternionRKMK4Step(dQuat0, dOmegaStages, dDeltaTime);
 
-        end
-
-        function dQuatOut = IntegrStep_RKMK4_Samples(dQuat0, dOmegaStages, dDeltaTime)
-            arguments
-                dQuat0      (4,1) double {mustBeFinite}
-                dOmegaStages (3,4) double {mustBeFinite}
-                dDeltaTime  (1,1) double {mustBePositive}
-            end
-
-            % Quaternion kinematics maps omega to Lie algebra rate xi = 0.5 * omega.
-            dXiStages = 0.5 * dOmegaStages;
-            dvTmpK1 = dDeltaTime * dXiStages(:,1);
-
-            % RKMK stages live in the Lie algebra. For non-commuting rotations, later
-            % stage vector fields must be pulled back with dexp^-1 before RK weighting.
-            dvTmpK2 = dDeltaTime * CQuatKinematicsIntegrator.GetDexpInvPureQuat_(0.5 * dvTmpK1, dXiStages(:,2));
-            dvTmpK3 = dDeltaTime * CQuatKinematicsIntegrator.GetDexpInvPureQuat_(0.5 * dvTmpK2, dXiStages(:,3));
-            dvTmpK4 = dDeltaTime * CQuatKinematicsIntegrator.GetDexpInvPureQuat_(dvTmpK3, dXiStages(:,4));
-
-            dTmpOmegaDelta = (dvTmpK1 + 2*dvTmpK2 + 2*dvTmpK3 + dvTmpK4) / 6;
-            % Same right-update convention as IntegrStep_LieGroupEuler and IntegrStep_RK4.
-            dQuatOut = CQuatKinematicsIntegrator.QuatSeqCross(dQuat0, CQuatKinematicsIntegrator.expMap(dTmpOmegaDelta));
-
-        end
-    end
-
-    methods (Static, Access = protected)
-        function dOut = GetDexpInvPureQuat_(dU, dV)
-            arguments
-                dU (3,1) double {mustBeFinite}
-                dV (3,1) double {mustBeFinite}
-            end
-
-            % Truncated dexp^-1_u(v) = v - 1/2 [u,v] + 1/12 [u,[u,v]].
-            % For pure Hamilton quaternions, [u,v] = uv - vu = 2 * cross(u,v).
-            % If stage rotations commute, cross terms vanish and this returns dV.
-            dBracketUV = 2.0 * cross(dU, dV);
-            dBracketUUV = 2.0 * cross(dU, dBracketUV);
-            % Note: 1/12 = 0.083333333333333
-            dOut = dV - 0.5 * dBracketUV + (0.083333333333333) * dBracketUUV;
         end
     end
 end

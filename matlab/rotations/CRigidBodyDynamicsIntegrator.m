@@ -1,23 +1,59 @@
-%% RigidBodyDynamicsIntegrator.m
 classdef CRigidBodyDynamicsIntegrator < handle & matlab.mixin.Copyable
+    %% SIGNATURE
+    % objIntegrator = CRigidBodyDynamicsIntegrator(dInertiaMatrix)
+    % -------------------------------------------------------------------------------------------------------------
+    %% DESCRIPTION
+    % Integrate passive scalar-first Hamilton attitude quaternions together with body-frame angular velocity.
+    % The class preserves callback-based legacy schemes and delegates the common constant-body-torque RK4-RKMK4
+    % step to a stateless code-generation-safe numerical primitive.
+    % -------------------------------------------------------------------------------------------------------------
+    %% INPUT
+    % dInertiaMatrix       (3,3) double rigid-body inertia matrix expressed in the body frame
+    % -------------------------------------------------------------------------------------------------------------
+    %% OUTPUT
+    % objIntegrator        (1,1) configured CRigidBodyDynamicsIntegrator
+    % -------------------------------------------------------------------------------------------------------------
+    %% CHANGELOG
+    % 24-08-2026  Pietro Califano, Codex     Remove unused quaternion-integrator injection.
+    % 23-08-2026  Pietro Califano, Codex     Document the frame contract and add the stateless RKMK4 fast path.
+    % -------------------------------------------------------------------------------------------------------------
+    %% DEPENDENCIES
+    % CQuatKinematicsIntegrator, IntegrateQuaternionRKMK4Step, IntegrateRigidBodyRK4RKMK4Step
+    % -------------------------------------------------------------------------------------------------------------
+
     properties
-        dInertiaMatrix          (3,3) double {mustBeFinite}     = zeros(3,3)
-        objQuatKinIntegrator    CQuatKinematicsIntegrator       = CQuatKinematicsIntegrator()
+        dInertiaMatrix    (3,3) double {mustBeFinite} = zeros(3,3)
     end
 
     methods (Access = public)
-         % CONSTRUCTOR
-        function self = CRigidBodyDynamicsIntegrator(dInertiaMatrix, objQuatInt)
+        function self = CRigidBodyDynamicsIntegrator(dInertiaMatrix)
+            %% SIGNATURE
+            % self = CRigidBodyDynamicsIntegrator(dInertiaMatrix)
+            % -----------------------------------------------------------------------------------------------------
+            %% DESCRIPTION
+            % Construct a rigid-body integrator with a body-frame inertia matrix.
+            % -----------------------------------------------------------------------------------------------------
+            %% INPUT
+            % dInertiaMatrix  (3,3) double body-frame inertia matrix
+            % -----------------------------------------------------------------------------------------------------
+            %% OUTPUT
+            % self            (1,1) configured CRigidBodyDynamicsIntegrator
+            % -----------------------------------------------------------------------------------------------------
+            %% CHANGELOG
+            % 24-08-2026  Pietro Califano, Codex     Remove unused quaternion-integrator injection.
+            % 23-08-2026  Pietro Califano, Codex     Consolidate the constructor contract.
+            % -----------------------------------------------------------------------------------------------------
+            %% DEPENDENCIES
+            % None.
+            % -----------------------------------------------------------------------------------------------------
+
             arguments
                 dInertiaMatrix (3,3) double {mustBeFinite} = zeros(3,3)
-                objQuatInt (1,1) CQuatKinematicsIntegrator = CQuatKinematicsIntegrator()
             end
-            % Assign attributes
+
             self.dInertiaMatrix = dInertiaMatrix;
-            self.objQuatKinIntegrator = objQuatInt;
         end
 
-        % PUBLIC METHODS
         function [dQuatOutSeq, dOmegaOutSeq] = integrate(self, ...
                                                        dTimegrid, ...
                                                        dQuat0, ...
@@ -27,6 +63,36 @@ classdef CRigidBodyDynamicsIntegrator < handle & matlab.mixin.Copyable
                                                        enumMethod, ...
                                                        bDecoupledKinoDynamics, ...
                                                        dDefaultMaxDeltaT)
+            %% SIGNATURE
+            % [dQuatOutSeq, dOmegaOutSeq] = integrate(self, dTimegrid, dQuat0, dOmega0, varTorque, dDeltaT, ...
+            %     enumMethod, bDecoupledKinoDynamics, dDefaultMaxDeltaT)
+            % -----------------------------------------------------------------------------------------------------
+            %% DESCRIPTION
+            % Propagate passive attitude and body angular velocity at the requested output epochs. Internal steps
+            % are bounded by dDeltaT or dDefaultMaxDeltaT according to the existing class integration contract.
+            % -----------------------------------------------------------------------------------------------------
+            %% INPUT
+            % self                      (1,1) configured rigid-body integrator
+            % dTimegrid                 (1,:) double requested output epochs [s]
+            % dQuat0                    (4,1) double initial passive scalar-first Hamilton quaternion
+            % dOmega0                   (3,1) double initial body-frame angular velocity [rad/s]
+            % varTorque                 function handle or double torque model
+            % dDeltaT                   (1,1) double explicit internal step [s], or zero to deduce it
+            % enumMethod                char integration method
+            % bDecoupledKinoDynamics    logical true when torque is independent of attitude
+            % dDefaultMaxDeltaT         (1,1) double maximum deduced internal step [s]
+            % -----------------------------------------------------------------------------------------------------
+            %% OUTPUT
+            % dQuatOutSeq               (4,:) double propagated passive quaternion history
+            % dOmegaOutSeq              (3,:) double propagated body-frame angular-velocity history [rad/s]
+            % -----------------------------------------------------------------------------------------------------
+            %% CHANGELOG
+            % 23-08-2026  Pietro Califano, Codex     Consolidate the public propagation contract.
+            % -----------------------------------------------------------------------------------------------------
+            %% DEPENDENCIES
+            % CRigidBodyDynamicsIntegrator.integrateStep_
+            % -----------------------------------------------------------------------------------------------------
+
             arguments
                 self                    (1,1) CRigidBodyDynamicsIntegrator
                 dTimegrid               (1,:) double {mustBeFinite, mustBeVector}
@@ -159,6 +225,35 @@ classdef CRigidBodyDynamicsIntegrator < handle & matlab.mixin.Copyable
                                                         varTorque, ...
                                                         bDecoupledKinoDynamics, ...
                                                         enumMethod) %#codegen
+            %% SIGNATURE
+            % [dQuatOut, dOmegaOut] = integrateStep_(dTimestamp, dInertiaMatrix, dQuat0, dOmega0, dDeltaT, ...
+            %     varTorque, bDecoupledKinoDynamics, enumMethod)
+            % -----------------------------------------------------------------------------------------------------
+            %% DESCRIPTION
+            % Advance one rigid-body step. Constant body torque with RK4-RKMK4 uses the stateless primitive;
+            % callback and alternate-method requests retain the compatibility implementation.
+            % -----------------------------------------------------------------------------------------------------
+            %% INPUT
+            % dTimestamp                 (1,1) double step start epoch [s]
+            % dInertiaMatrix             (3,3) double body-frame inertia matrix
+            % dQuat0                     (4,1) double initial passive quaternion
+            % dOmega0                    (3,1) double initial body-frame angular velocity [rad/s]
+            % dDeltaT                    (1,1) double positive integration step [s]
+            % varTorque                  function handle or constant body-frame torque
+            % bDecoupledKinoDynamics     logical true when torque is independent of attitude
+            % enumMethod                 char integration method
+            % -----------------------------------------------------------------------------------------------------
+            %% OUTPUT
+            % dQuatOut                   (4,1) double propagated passive quaternion
+            % dOmegaOut                  (3,1) double propagated body-frame angular velocity [rad/s]
+            % -----------------------------------------------------------------------------------------------------
+            %% CHANGELOG
+            % 23-08-2026  Pietro Califano, Codex     Add the stateless constant-torque RKMK4 path.
+            % -----------------------------------------------------------------------------------------------------
+            %% DEPENDENCIES
+            % IntegrateRigidBodyRK4RKMK4Step
+            % -----------------------------------------------------------------------------------------------------
+
             arguments
                 dTimestamp              (1,1) double {mustBeGreaterThanOrEqual(dTimestamp, 0.0)}
                 dInertiaMatrix          (3,3) double {mustBeNumeric}
@@ -171,13 +266,22 @@ classdef CRigidBodyDynamicsIntegrator < handle & matlab.mixin.Copyable
             end
             % Combined integration step (decoupled or coupled)
 
+            assert(all(diag(dInertiaMatrix) > 0.0), 'ERROR: invalid inertia matrix. Diagonal cannot be non-positive.')
+
+            % Return before constructing callback closures for the common
+            % decoupled constant-torque RKMK4 path.
+            if coder.const(bDecoupledKinoDynamics && ...
+                    strcmp(enumMethod, 'rk4_rkmk4') && isa(varTorque, "double"))
+                [dQuatOut, dOmegaOut] = IntegrateRigidBodyRK4RKMK4Step( ...
+                    dInertiaMatrix, dQuat0, dOmega0, varTorque, dDeltaT);
+                return
+            end
+
             if coder.const(isa(varTorque, "function_handle"))
                 dvTmpTorque_ = varTorque;
             else
                 dvTmpTorque_ = @(dTstamp, dOmega, dQuat0) varTorque; % Constant, defaults to zero
             end
-
-            assert(all(diag(dInertiaMatrix) > 0.0), 'ERROR: invalid inertia matrix. Diagonal cannot be non-positive.')
             fcnEvalOmegaRHS = @(dTstamp, dOmega, dQuat0) CRigidBodyDynamicsIntegrator.EvalRHS_AngAccel_(dInertiaMatrix, ...
                                                                                                        dOmega, ...
                                                                                                        dvTmpTorque_(dTstamp, dOmega, dQuat0));
@@ -199,12 +303,10 @@ classdef CRigidBodyDynamicsIntegrator < handle & matlab.mixin.Copyable
                                                                                             dTimestamp, ...
                                                                                             dDeltaT);
                     case 'rk4_rkmk4'
-                        % RK4-RKMK4 step: integrate angular velocity with RK4 and update quaternion with RKMK4 using the same angular velocity samples at the stages.
-                        [dOmegaOut, dQuatOut] = CRigidBodyDynamicsIntegrator.IntegrStep_RK4_RKMK4(dOmega0, ...
-                                                                                                  dQuat0, ...
-                                                                                                  fcnEvalOmegaRHS, ...
-                                                                                                  dTimestamp, ...
-                                                                                                  dDeltaT);
+                        [dOmegaOut, dQuatOut] = ...
+                            CRigidBodyDynamicsIntegrator.IntegrStep_RK4_RKMK4( ...
+                                dOmega0, dQuat0, fcnEvalOmegaRHS, ...
+                                dTimestamp, dDeltaT);
                 end
             else
                 error('Not yet implemented')
@@ -256,6 +358,35 @@ classdef CRigidBodyDynamicsIntegrator < handle & matlab.mixin.Copyable
                                                                               fcnEvalOmegaRHS, ...
                                                                               dTstamp, ...
                                                                               dDeltaTime)
+            %% SIGNATURE
+            % [dNextOmega, dNextQuat, dOmegaStagesVals, dStagesTimes] = IntegrStep_RK4_RKMK4( ...
+            %     dOmega0, dQuat0, fcnEvalOmegaRHS, dTstamp, dDeltaTime)
+            % -----------------------------------------------------------------------------------------------------
+            %% DESCRIPTION
+            % Advance one callback-driven rigid-body step with classical RK4 angular-velocity stages and the
+            % canonical RKMK4 quaternion primitive. This compatibility path supports acceleration callbacks;
+            % constant body torque uses IntegrateRigidBodyRK4RKMK4Step through integrateStep_.
+            % -----------------------------------------------------------------------------------------------------
+            %% INPUT
+            % dOmega0             (3,1) double initial body-frame angular velocity [rad/s]
+            % dQuat0              (4,1) double initial passive scalar-first Hamilton quaternion
+            % fcnEvalOmegaRHS     function handle returning body-frame angular acceleration [rad/s^2]
+            % dTstamp             (1,1) double step start epoch [s]
+            % dDeltaTime          (1,1) double positive integration step [s]
+            % -----------------------------------------------------------------------------------------------------
+            %% OUTPUT
+            % dNextOmega          (3,1) double propagated body-frame angular velocity [rad/s]
+            % dNextQuat           (4,1) double propagated normalized passive quaternion
+            % dOmegaStagesVals    (3,4) double body-frame angular-velocity stage values [rad/s]
+            % dStagesTimes        (1,4) double RK4 stage epochs [s]
+            % -----------------------------------------------------------------------------------------------------
+            %% CHANGELOG
+            % 24-08-2026  Pietro Califano, Codex     Delegate quaternion propagation to the stateless primitive.
+            % -----------------------------------------------------------------------------------------------------
+            %% DEPENDENCIES
+            % CRigidBodyDynamicsIntegrator.IntegrStep_RK4_OmegaStages_, IntegrateQuaternionRKMK4Step
+            % -----------------------------------------------------------------------------------------------------
+
             arguments
                 dOmega0         (3,1) double {mustBeFinite}
                 dQuat0          (4,1) double {mustBeFinite}
@@ -263,22 +394,12 @@ classdef CRigidBodyDynamicsIntegrator < handle & matlab.mixin.Copyable
                 dTstamp         (1,1) double {mustBeFinite}
                 dDeltaTime      (1,1) double {mustBePositive}
             end
-            %%% IntegrStep_RK4  Single RK4 step for attitude dynamics of a rigid body
-            %
-            % Butcher table:
-            %    A = [0    0    0    0;
-            %         1/2  0    0    0;
-            %         0    1/2  0    0;
-            %         0    0    1    0];
-            %    b = [1/6; 1/3; 1/3; 1/6];
-            %    c = [0; 1/2; 1/2; 1];
-
             [dNextOmega, dOmegaStagesVals, dStagesTimes] = CRigidBodyDynamicsIntegrator.IntegrStep_RK4_OmegaStages_(dOmega0, ...
                                                                                                                      dQuat0, ...
                                                                                                                      fcnEvalOmegaRHS, ...
                                                                                                                      dTstamp, ...
                                                                                                                      dDeltaTime);
-            dNextQuat = CQuatKinematicsIntegrator.IntegrStep_RKMK4_Samples(dQuat0, dOmegaStagesVals, dDeltaTime);
+            dNextQuat = IntegrateQuaternionRKMK4Step(dQuat0, dOmegaStagesVals, dDeltaTime);
         end
     end
 

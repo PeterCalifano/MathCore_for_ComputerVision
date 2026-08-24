@@ -241,6 +241,101 @@ classdef testCQuatKinematicsIntegrator < matlab.unittest.TestCase
 
         end
 
+        function testRkmk4NoncommutingRateFourthOrder(testCase)
+            %% SIGNATURE
+            % testRkmk4NoncommutingRateFourthOrder(testCase)
+            % -------------------------------------------------------------------------------------------------
+            %% DESCRIPTION
+            % Verify fourth-order convergence for a time-varying, noncommuting body angular-velocity profile.
+            % -------------------------------------------------------------------------------------------------
+            %% INPUT
+            % testCase    Active MATLAB unit-test instance.
+            % -------------------------------------------------------------------------------------------------
+            %% OUTPUT
+            % None.
+            % -------------------------------------------------------------------------------------------------
+            %% CHANGELOG
+            % 24-08-2026  Pietro Califano, Codex     First implementation.
+            % -------------------------------------------------------------------------------------------------
+            %% DEPENDENCIES
+            % IntegrateQuaternionRKMK4Step, testCQuatKinematicsIntegrator.referenceQuatOde_
+            % -------------------------------------------------------------------------------------------------
+
+            dInitialQuat = CQuatKinematicsIntegrator.NormalizeSeq( ...
+                [0.91; -0.14; 0.27; 0.19]);
+            fcnAngVel = @(dTstamp) [0.35 + 0.08 * sin(0.9 * dTstamp); ...
+                                   -0.22 + 0.06 * cos(1.3 * dTstamp); ...
+                                    0.17 + 0.05 * sin(1.7 * dTstamp)];
+            dFinalTime = 4.0;
+            dStepSizes = [0.4, 0.2, 0.1, 0.05, 0.025];
+            dReferenceQuatSeq = testCQuatKinematicsIntegrator.referenceQuatOde_( ...
+                dInitialQuat, fcnAngVel, [0.0, dFinalTime]);
+            dReferenceQuat = dReferenceQuatSeq(:, end);
+            dEndpointErrors = zeros(size(dStepSizes));
+
+            % Propagate each resolution with the same RKMK4 stage sampling
+            % so the measured slope isolates the canonical numerical step.
+            for ui32ResolutionIdx = uint32(1):uint32(numel(dStepSizes))
+                dStepSize = dStepSizes(ui32ResolutionIdx);
+                ui32NumSteps = uint32(round(dFinalTime / dStepSize));
+                dActualQuat = dInitialQuat;
+
+                for ui32StepIdx = uint32(1):ui32NumSteps
+                    dTstamp = (double(ui32StepIdx) - 1.0) * dStepSize;
+                    dAngVelStages = [fcnAngVel(dTstamp), ...
+                        fcnAngVel(dTstamp + 0.5 * dStepSize), ...
+                        fcnAngVel(dTstamp + 0.5 * dStepSize), ...
+                        fcnAngVel(dTstamp + dStepSize)];
+                    dActualQuat = IntegrateQuaternionRKMK4Step( ...
+                        dActualQuat, dAngVelStages, dStepSize);
+                end
+
+                dEndpointErrors(ui32ResolutionIdx) = min( ...
+                    norm(dActualQuat - dReferenceQuat), ...
+                    norm(dActualQuat + dReferenceQuat));
+            end
+
+            dObservedOrders = log2( ...
+                dEndpointErrors(1:end-1) ./ dEndpointErrors(2:end));
+            testCase.verifyGreaterThan(min(dObservedOrders), 3.9);
+        end
+
+        function testStatelessRkmk4StepPreservesTinyRotation(testCase)
+            %% SIGNATURE
+            % testStatelessRkmk4StepPreservesTinyRotation(testCase)
+            % -------------------------------------------------------------------------------------------------
+            %% DESCRIPTION
+            % Verify that the exponential map preserves a nonzero rotation below the former small-angle cutoff.
+            % -------------------------------------------------------------------------------------------------
+            %% INPUT
+            % testCase    Active MATLAB unit-test instance.
+            % -------------------------------------------------------------------------------------------------
+            %% OUTPUT
+            % None.
+            % -------------------------------------------------------------------------------------------------
+            %% CHANGELOG
+            % 23-08-2026  Pietro Califano, Codex     First implementation.
+            % -------------------------------------------------------------------------------------------------
+            %% DEPENDENCIES
+            % IntegrateQuaternionRKMK4Step
+            % -------------------------------------------------------------------------------------------------
+
+            dInitialQuat = [1.0; 0.0; 0.0; 0.0];
+            dAngVel = [1.0e-13; -0.6e-13; 0.4e-13];
+            dAngVelStages = repmat(dAngVel, 1, 4);
+            dStepSize = 1.0;
+
+            dActualQuat = IntegrateQuaternionRKMK4Step( ...
+                dInitialQuat, dAngVelStages, dStepSize);
+            dLieIncrement = 0.5 * dStepSize * dAngVel;
+            dIncrementNorm = norm(dLieIncrement);
+            dExpectedQuat = [cos(dIncrementNorm); ...
+                sin(dIncrementNorm) * dLieIncrement / dIncrementNorm];
+
+            testCase.verifyEqual(dActualQuat, dExpectedQuat, 'AbsTol', 1.0e-28);
+            testCase.verifyGreaterThan(norm(dActualQuat(2:4)), 0.0);
+        end
+
     end
 
     methods (Static, Access = private)

@@ -1,23 +1,54 @@
 classdef testCRigidBodyDynamicsIntegrator < matlab.unittest.TestCase
     methods (Test)
         function testDefaultConstructor(testCase)
-            objIntegrator = CRigidBodyDynamicsIntegrator();
-            objIntegrator.dInertiaMatrix = eye(3);
+            %% SIGNATURE
+            % testDefaultConstructor(testCase)
+            % -------------------------------------------------------------------------------------------------
+            %% DESCRIPTION
+            % Verify the default rigid-body integrator owns only its default zero inertia matrix.
+            % -------------------------------------------------------------------------------------------------
+            %% INPUT
+            % testCase    Active MATLAB unit-test instance.
+            % -------------------------------------------------------------------------------------------------
+            %% OUTPUT
+            % None.
+            % -------------------------------------------------------------------------------------------------
+            %% CHANGELOG
+            % 24-08-2026  Pietro Califano, Codex     Update for the simplified constructor contract.
+            % -------------------------------------------------------------------------------------------------
+            %% DEPENDENCIES
+            % CRigidBodyDynamicsIntegrator
+            % -------------------------------------------------------------------------------------------------
 
-            % Default inertia should be identity
-            testCase.verifyEqual(objIntegrator.dInertiaMatrix, eye(3));
-            % Default quaternion integrator should be a QuaternionIntegrator
-            testCase.verifyClass(objIntegrator.objQuatKinIntegrator, 'CQuatKinematicsIntegrator');
+            objIntegrator = CRigidBodyDynamicsIntegrator();
+
+            testCase.verifyEqual(objIntegrator.dInertiaMatrix, zeros(3,3));
         end
 
         function testCustomConstructor(testCase)
-            % Custom inertia and integrator
+            %% SIGNATURE
+            % testCustomConstructor(testCase)
+            % -------------------------------------------------------------------------------------------------
+            %% DESCRIPTION
+            % Verify construction with a supplied body-frame inertia matrix.
+            % -------------------------------------------------------------------------------------------------
+            %% INPUT
+            % testCase    Active MATLAB unit-test instance.
+            % -------------------------------------------------------------------------------------------------
+            %% OUTPUT
+            % None.
+            % -------------------------------------------------------------------------------------------------
+            %% CHANGELOG
+            % 24-08-2026  Pietro Califano, Codex     Update for the simplified constructor contract.
+            % -------------------------------------------------------------------------------------------------
+            %% DEPENDENCIES
+            % CRigidBodyDynamicsIntegrator
+            % -------------------------------------------------------------------------------------------------
+
             dInertia = diag([2,3,4]);
-            objQuatInt = CQuatKinematicsIntegrator();
-            objIntegrator = CRigidBodyDynamicsIntegrator(dInertia, objQuatInt);
-            
+            objIntegrator = CRigidBodyDynamicsIntegrator(dInertia);
+
             testCase.verifyEqual(objIntegrator.dInertiaMatrix, dInertia);
-            testCase.verifySameHandle(objIntegrator.objQuatKinIntegrator, objQuatInt);
         end
 
         function testEvalRHSAngAccel(testCase)
@@ -103,7 +134,7 @@ classdef testCRigidBodyDynamicsIntegrator < matlab.unittest.TestCase
         end
 
         function testIntegrateSupportsLieEulerAndRK4ConstantRate(testCase)
-            objIntegrator = CRigidBodyDynamicsIntegrator(eye(3), CQuatKinematicsIntegrator());
+            objIntegrator = CRigidBodyDynamicsIntegrator(eye(3));
 
             dTimegrid = 0:0.1:1.0;
             dQuat0 = [1;0;0;0];
@@ -128,7 +159,7 @@ classdef testCRigidBodyDynamicsIntegrator < matlab.unittest.TestCase
         end
 
         function testIntegrateUsesActualPartialInternalStep(testCase)
-            objIntegrator = CRigidBodyDynamicsIntegrator(eye(3), CQuatKinematicsIntegrator());
+            objIntegrator = CRigidBodyDynamicsIntegrator(eye(3));
 
             dTimegrid = [0.0, 0.25, 0.5];
             dQuat0 = [1;0;0;0];
@@ -151,7 +182,7 @@ classdef testCRigidBodyDynamicsIntegrator < matlab.unittest.TestCase
         end
 
         function testIntegrateDeducesInternalStepFromDefaultLimit(testCase)
-            objIntegrator = CRigidBodyDynamicsIntegrator(eye(3), CQuatKinematicsIntegrator());
+            objIntegrator = CRigidBodyDynamicsIntegrator(eye(3));
 
             dTimegrid = [0.0, 0.25, 0.5];
             dQuat0 = [1;0;0;0];
@@ -211,7 +242,7 @@ classdef testCRigidBodyDynamicsIntegrator < matlab.unittest.TestCase
 
             % With constant torque, angular momentum must not be constant
             I = diag([2,2,2]);
-            objIntegrator = CRigidBodyDynamicsIntegrator(I, CQuatKinematicsIntegrator());
+            objIntegrator = CRigidBodyDynamicsIntegrator(I);
             
             dTimegrid = 0:0.2:1.0;
             dQuat0    = [1;0;0;0];
@@ -268,7 +299,7 @@ classdef testCRigidBodyDynamicsIntegrator < matlab.unittest.TestCase
 
         function testRk4Rkmk4MatchesOdeReferenceForChangingBodyRate(testCase)
             dInertia = diag([1.5, 2.0, 3.5]);
-            objIntegrator = CRigidBodyDynamicsIntegrator(dInertia, CQuatKinematicsIntegrator());
+            objIntegrator = CRigidBodyDynamicsIntegrator(dInertia);
 
             dTimegrid = 0:1:60;
             dQuat0 = [1;0;0;0];
@@ -295,6 +326,91 @@ classdef testCRigidBodyDynamicsIntegrator < matlab.unittest.TestCase
             testCase.verifyLessThan(max(dOmegaErr), 5e-8);
         end
 
+        function testRk4Rkmk4PreservesInertialAngularMomentumDirection(testCase)
+            %% SIGNATURE
+            % testRk4Rkmk4PreservesInertialAngularMomentumDirection(testCase)
+            % -------------------------------------------------------------------------------------------------
+            %% DESCRIPTION
+            % Verify the passive-attitude/body-rate contract through conservation of the inertial momentum vector.
+            % -------------------------------------------------------------------------------------------------
+            %% INPUT
+            % testCase    Active MATLAB unit-test instance.
+            % -------------------------------------------------------------------------------------------------
+            %% OUTPUT
+            % None.
+            % -------------------------------------------------------------------------------------------------
+            %% CHANGELOG
+            % 23-08-2026  Pietro Califano, Codex     First implementation.
+            % -------------------------------------------------------------------------------------------------
+            %% DEPENDENCIES
+            % CRigidBodyDynamicsIntegrator, QuatSeq2DCM, RotationVectorToDCM
+            % -------------------------------------------------------------------------------------------------
+
+            dInertia = diag([1.8, 2.3, 3.1]);
+            dInitialDCM_TBfromIN = RotationVectorToDCM([0.31; -0.18; 0.22]);
+            dInitialQuat_TBfromIN = DCM2quatSeq(dInitialDCM_TBfromIN, false);
+            dInitialAngVel_TB = [0.11; -0.07; 0.24];
+            dTimegrid = 0.0:0.5:20.0;
+
+            objIntegrator = CRigidBodyDynamicsIntegrator(dInertia);
+            [dQuatHistory_TBfromIN, dAngVelHistory_TB] = objIntegrator.integrate( ...
+                dTimegrid, dInitialQuat_TBfromIN, dInitialAngVel_TB, ...
+                zeros(3,1), 0.02, 'rk4_rkmk4', true, 0.02);
+
+            dDCMHistory_TBfromIN = QuatSeq2DCM(dQuatHistory_TBfromIN, false);
+            dAngMomHistory_IN = zeros(3, numel(dTimegrid));
+            for ui32TimeIdx = uint32(1):uint32(numel(dTimegrid))
+                dAngMomHistory_IN(:, ui32TimeIdx) = ...
+                    transpose(dDCMHistory_TBfromIN(:, :, ui32TimeIdx)) * ...
+                    dInertia * dAngVelHistory_TB(:, ui32TimeIdx);
+            end
+
+            dMaxAngMomDirectionDrift = max(vecnorm( ...
+                dAngMomHistory_IN - dAngMomHistory_IN(:, 1), 2, 1));
+            testCase.verifyLessThan(dMaxAngMomDirectionDrift, 2.0e-10);
+        end
+
+        function testStatelessConstantTorqueStepMatchesCallbackPath(testCase)
+            %% SIGNATURE
+            % testStatelessConstantTorqueStepMatchesCallbackPath(testCase)
+            % -------------------------------------------------------------------------------------------------
+            %% DESCRIPTION
+            % Compare the stateless constant-body-torque step with the independent callback-based compatibility path.
+            % -------------------------------------------------------------------------------------------------
+            %% INPUT
+            % testCase    Active MATLAB unit-test instance.
+            % -------------------------------------------------------------------------------------------------
+            %% OUTPUT
+            % None.
+            % -------------------------------------------------------------------------------------------------
+            %% CHANGELOG
+            % 23-08-2026  Pietro Califano, Codex     First implementation.
+            % -------------------------------------------------------------------------------------------------
+            %% DEPENDENCIES
+            % CRigidBodyDynamicsIntegrator.IntegrStep_RK4_RKMK4, IntegrateRigidBodyRK4RKMK4Step
+            % -------------------------------------------------------------------------------------------------
+
+            dInertia = [2.1, 0.08, -0.03; ...
+                        0.08, 2.7, 0.05; ...
+                       -0.03, 0.05, 3.4];
+            dInitialQuat = CQuatKinematicsIntegrator.NormalizeSeq( ...
+                [0.88; 0.19; -0.31; 0.23]);
+            dInitialAngVel = [0.14; -0.09; 0.27];
+            dTorque = [2.0e-3; -1.0e-3; 1.5e-3];
+            dStepSize = 0.04;
+            fcnAngAccel = @(~, dAngVel, ~) dInertia \ ...
+                (dTorque - cross(dAngVel, dInertia * dAngVel));
+
+            [dExpectedAngVel, dExpectedQuat] = ...
+                CRigidBodyDynamicsIntegrator.IntegrStep_RK4_RKMK4( ...
+                    dInitialAngVel, dInitialQuat, fcnAngAccel, 0.0, dStepSize);
+            [dActualQuat, dActualAngVel] = IntegrateRigidBodyRK4RKMK4Step( ...
+                dInertia, dInitialQuat, dInitialAngVel, dTorque, dStepSize);
+
+            testCase.verifyEqual(dActualAngVel, dExpectedAngVel, 'AbsTol', 2.0e-15);
+            testCase.verifyEqual(dActualQuat, dExpectedQuat, 'AbsTol', 2.0e-15);
+        end
+
         function testTorqueFreeSymmetricTop(testCase)
 
             % Torque-free motion for symmetric top (I1=I2 != I3)
@@ -303,7 +419,7 @@ classdef testCRigidBodyDynamicsIntegrator < matlab.unittest.TestCase
             dI3 = 1;
             
             dI = diag([dI1, dI2, dI3]);
-            objIntegrator = CRigidBodyDynamicsIntegrator(dI, CQuatKinematicsIntegrator());
+            objIntegrator = CRigidBodyDynamicsIntegrator(dI);
 
             % Time grid
             dTimegrid = 0:0.1:2.0;
