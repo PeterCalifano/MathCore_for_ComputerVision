@@ -176,6 +176,9 @@ The utility never invokes `sudo` itself. Mutation requires an explicit mode and 
 
 ## Documentation
 
+Read [MATLAB utilities](doc/main_page.md#matlab-utilities) for source-helper
+usage and shared hash-package provenance.
+
 ```bash
 cmake --preset docs
 cmake --build --preset docs
