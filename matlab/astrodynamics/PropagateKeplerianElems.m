@@ -20,7 +20,9 @@ end
 % -------------------------------------------------------------------------------------------------------------
 %% DESCRIPTION
 % General purpose Keplerian propagator in Classical Keplerian elements. It propagates the initial state over
-% the specified time grid of time intervals. The function handles all types of keplerian orbits.
+% the specified time grid of time intervals. The function handles all types of keplerian orbits. The state
+% carries the true anomaly; each step converts it to the eccentric (elliptic) or hyperbolic anomaly, advances
+% the mean anomaly, solves Kepler's equation by Newton-Raphson and converts back to the true anomaly.
 % 1) Fundamentals of Astrodynamics and Applications - D. Vallado. Section
 %    2.2, Kepler's Problem. Algorithms 3 and 4.
 % -------------------------------------------------------------------------------------------------------------
@@ -48,6 +50,9 @@ end
 % 01-05-2025    Pietro Califano     Major code refactoring for usage in Sequences dataset generation. Unit
 %                                   test case (class): testPropagateKeplerianElems
 % 14-02-2026   Pietro Califano      Update implementation and change of input interface, fix bugs
+% 28-10-2026   Pietro Califano, Claude Fable 5.1   Fix: Kepler's equation was evaluated with the true anomaly
+%                                   in place of the eccentric/hyperbolic anomaly (wrong for every non-circular
+%                                   orbit); Newton solvers warn whenever the tolerance is not reached.
 % -------------------------------------------------------------------------------------------------------------
 %% DEPENDENCIES
 % [-]
@@ -152,13 +157,18 @@ dKeplStateNext = dKeplStatePrev;
 dEcc = dKeplStatePrev(2);
 dTrueAnom = dKeplStatePrev(6);
 
-% Compute initial mean Anomaly based on the orbit type
+% Compute initial mean Anomaly based on the orbit type. Kepler's equation takes the eccentric anomaly E
+% (elliptic, M = E - e sin E) or the hyperbolic anomaly H (hyperbolic, M = e sinh H - H), never the true
+% anomaly nu carried by the state: E and H come from the half-angle relations
+% tan(E/2) = sqrt((1-e)/(1+e)) tan(nu/2) and sinh(H) = sqrt(e^2-1) sin(nu) / (1 + e cos(nu)) (Vallado, 2.2).
 if dEcc >= 1 + dEccThreshold
-    dMeanAnom = dEcc * sinh(dTrueAnom) - dTrueAnom;
+    dHyperbolicAnom = asinh( sqrt(dEcc^2 - 1) * sin(dTrueAnom) / (1 + dEcc * cos(dTrueAnom)) );
+    dMeanAnom = dEcc * sinh(dHyperbolicAnom) - dHyperbolicAnom;
     i8OrbitType = int8(0); % Hyperbolic
 
 elseif dEcc >= dEccThreshold && dEcc <= 1 - dEccThreshold
-    dMeanAnom = dTrueAnom - dEcc * sin(dTrueAnom);
+    dEccentricAnom = 2 * atan2( sqrt(1 - dEcc) * sin(dTrueAnom/2), dSqrt1PlusEcc * cos(dTrueAnom/2) );
+    dMeanAnom = dEccentricAnom - dEcc * sin(dEccentricAnom);
     i8OrbitType = int8(1); % Elliptical
 
 elseif dEcc <= 0 + dEccThreshold
@@ -231,7 +241,8 @@ else
 end
 
 % Newton-Raphson cycle
-while dErrorVal > dRadAngleTol && ui32IterCount <= ui32MaxIter
+dHyperbolicAnomNext = dHtmp;
+while dErrorVal > dRadAngleTol && ui32IterCount < ui32MaxIter
 
     % Execute iteration of Newton-Raphson to solve for H anomaly
     dHyperbolicAnomNext = dHtmp + ( dMeanAnom - dEcc*sinh(dHtmp) + dHtmp )./(dEcc * cosh(dHtmp) - 1);
@@ -244,9 +255,8 @@ while dErrorVal > dRadAngleTol && ui32IterCount <= ui32MaxIter
 
 end
 
-if ui32IterCount == ui32MaxIter
+if dErrorVal > dRadAngleTol
     warning("Max number %d of iterations reached with error %6g.", ui32MaxIter, dErrorVal);
-    return
 end
 
 end
@@ -273,9 +283,10 @@ else
 end
 
 % Newton-Raphson cycle
-while dErrorValue > dRadAngleTol && ui32IterCount <= ui32MaxIter
+dEccentricAnomNext = dEtmp;
+while dErrorValue > dRadAngleTol && ui32IterCount < ui32MaxIter
 
-    % Execute iteration of Newton-Raphson to solve for H anomaly
+    % Execute iteration of Newton-Raphson to solve for E anomaly
     dEccentricAnomNext = dEtmp + ( dMeanAnom - dEtmp + dEcc * sin(dEtmp) )./(1 - dEcc*cos(dEtmp));
 
     % Evaluate error for convergence check
@@ -284,10 +295,10 @@ while dErrorValue > dRadAngleTol && ui32IterCount <= ui32MaxIter
 
     ui32IterCount = ui32IterCount + uint32(1);
 
-    if ui32IterCount == ui32MaxIter
-        warning("Max number %d of iterations reached with error %6g.", ui32MaxIter, dErrorValue);
-        return
-    end
+end
+
+if dErrorValue > dRadAngleTol
+    warning("Max number %d of iterations reached with error %6g.", ui32MaxIter, dErrorValue);
 end
 
 end
