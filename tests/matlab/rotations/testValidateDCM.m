@@ -15,6 +15,7 @@ function tests = testValidateDCM
 % -------------------------------------------------------------------------------------------------------------
 %% CHANGELOG
 % 08-11-2026  Pietro Califano, Claude Opus 5.5    Test the assert and output branches of ValidateDCM.
+% 08-11-2026  Pietro Califano, Claude Opus 5.5    Test the rejection of non-orthogonal unit columns.
 % -------------------------------------------------------------------------------------------------------------
 %% DEPENDENCIES
 % ValidateDCM.
@@ -114,6 +115,25 @@ verifyTrue(testCase, ValidateDCM(dBelowDCM, dTol, true));
 
 verifyFalse(testCase, ValidateDCM(dAboveDCM, dTol, false));
 verifyError(testCase, @() ValidateDCM(dAboveDCM, dTol, true), ?MException);
+end
+
+function testNonOrthogonalUnitColumnsAreInvalid(testCase)
+dTol = 1.0e-6;
+
+% Tilt column 2 towards column 1 by 1e-4 rad and rebuild column 3 as their normalized cross product. All
+% columns have unit norm and the cross-product residual is about 5e-9, so only the orthogonality check fails.
+dAngleError = 1.0e-4;
+dColumn1 = [1.0; 0.0; 0.0];
+dColumn2 = [sin(dAngleError); cos(dAngleError); 0.0];
+dColumn3 = cross(dColumn1, dColumn2);
+dColumn3 = dColumn3 / norm(dColumn3);
+dShearedDCM = [dColumn1, dColumn2, dColumn3];
+
+verifyLessThan(testCase, norm(cross(dColumn1, dColumn2) - dColumn3), dTol);
+verifyGreaterThan(testCase, abs(dot(dColumn1, dColumn2)), dTol);
+
+verifyFalse(testCase, ValidateDCM(dShearedDCM, dTol, false));
+verifyError(testCase, @() ValidateDCM(dShearedDCM, dTol, true), ?MException);
 end
 
 function cellInvalidDCMs = BuildInvalidDCMs_()

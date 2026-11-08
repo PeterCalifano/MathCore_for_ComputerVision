@@ -9,11 +9,12 @@ end
 % -------------------------------------------------------------------------------------------------------------
 %% DESCRIPTION
 % Check whether dDCM is a valid direction cosine matrix. A valid DCM is real-valued and finite, each column
-% has unit norm within dTol (abs(dot(Ci, Ci) - 1) <= dTol), and the columns are orthogonal and right-handed
-% within dTol (norm(cross(C1, C2) - C3) <= dTol).
+% has unit norm within dTol (abs(dot(Ci, Ci) - 1) <= dTol), the columns are pairwise orthogonal within dTol
+% (abs(dot(Ci, Cj)) <= dTol for i < j), and they are right-handed within dTol
+% (norm(cross(C1, C2) - C3) <= dTol).
 % The function has two branches, selected by bAssertOnInvalid:
 % - true (default), assert branch: in MATLAB and MEX, assert on the first failed condition, in the order
-%   real-valued, finite, unit norm, orthonormal and right-handed. Generated code does not assert and only
+%   real-valued, finite, unit norm, pairwise orthogonal, right-handed. Generated code does not assert and only
 %   returns bValidity.
 % - false, output branch: return bValidity and never assert or error on an invalid matrix, in MATLAB, MEX
 %   or generated code. Use it to test a matrix as a predicate.
@@ -21,19 +22,23 @@ end
 % -------------------------------------------------------------------------------------------------------------
 %% INPUT
 % dDCM              (3,3) {mustBeNumeric}, matrix to check
-% dTol              (1,1) {mustBePositive} = eps('single'), tolerance of the unit-norm and cross-product checks
+% dTol              (1,1) {mustBePositive} = eps('single'), tolerance of the unit-norm, orthogonality and
+%                   cross-product checks
 % bAssertOnInvalid  (1,1) logical {coder.mustBeConst} = true, compile-time flag: true asserts on an invalid
 %                   matrix in MATLAB and MEX, false only returns bValidity
 % -------------------------------------------------------------------------------------------------------------
 %% OUTPUT
-% bValidity (1,1) logical, true if dDCM is real-valued, finite, has unit-norm columns and is orthonormal and
-%           right-handed within dTol. In the assert branch, MATLAB and MEX error instead of returning false.
+% bValidity (1,1) logical, true if dDCM is real-valued, finite, has unit-norm and pairwise orthogonal columns
+%           and is right-handed within dTol. In the assert branch, MATLAB and MEX error instead of returning
+%           false.
 % -------------------------------------------------------------------------------------------------------------
 %% CHANGELOG
 % 08-06-2026    Pietro Califano     First implementation
 % 08-11-2026    Pietro Califano, Claude Opus 5.5    Add assert and output branches (compile-time flag) and a
 %                                                   real-valued check: complex input such as diag([1i, -1i, 1])
 %                                                   is now invalid.
+% 08-11-2026    Pietro Califano, Claude Opus 5.5    Check pairwise column orthogonality: the cross product
+%                                                   alone accepts a column 1-2 angle error up to sqrt(2*dTol).
 % -------------------------------------------------------------------------------------------------------------
 %% DEPENDENCIES
 % [-]
@@ -54,9 +59,13 @@ bHasUnitNorm = abs(dot(C1,C1) - 1.0) <= dTol && ...
     abs(dot(C2,C2) - 1.0) <= dTol && ...
     abs(dot(C3,C3) - 1.0) <= dTol;
 
+bIsOrthogonal = abs(dot(C1,C2)) <= dTol && ...
+    abs(dot(C1,C3)) <= dTol && ...
+    abs(dot(C2,C3)) <= dTol;
+
 bIsOrthoRightHanded = norm(cross(C1,C2) - C3) <= dTol;
 
-bValidity = bIsReal && bIsFinite && bHasUnitNorm && bIsOrthoRightHanded;
+bValidity = bIsReal && bIsFinite && bHasUnitNorm && bIsOrthogonal && bIsOrthoRightHanded;
 
 % Select the branch at compile time
 if coder.const(bAssertOnInvalid)
@@ -72,6 +81,9 @@ if coder.const(bAssertOnInvalid)
 
         assert(bHasUnitNorm, ...
             'ERROR: invalid DCM. Columns must have unit norm.');
+
+        assert(bIsOrthogonal, ...
+            'ERROR: invalid DCM. Columns must be pairwise orthogonal.');
 
         assert(bIsOrthoRightHanded, ...
             'ERROR: invalid DCM. Columns must be orthonormal and right-handed.');
