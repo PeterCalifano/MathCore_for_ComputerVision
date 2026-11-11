@@ -2,17 +2,17 @@ function [dxStates] = PropagateKeplerianElems(dxStateKeplInit, ...
                                                 dGravParam, ...
                                                 dTimeGrid, ...
                                                 kwargs) %#codegen
-arguments
+arguments (Input)
     dxStateKeplInit (6,1) {mustBeNumeric}
     dGravParam      (1,1) {mustBeGreaterThan(dGravParam, 0)}
     dTimeGrid       (1,:) {mustBeNumeric}
 end
-arguments
+arguments (Input)
     kwargs.ui32MaxIter   (1,1) uint32 {mustBeNumeric} = 50
     kwargs.dRadAngleTol  (1,1) double {mustBeNumeric} = 1e-9; % [rad]
     kwargs.bConvert2Cart (1,1) logical = false
 end
-%% PROTOTYPE
+%% SIGNATURE
 % [dxStates] = PropagateKeplerianElems(dxStateKeplInit, ...
 %                                      dGravParam, ...
 %                                      dTimeGrid, ...
@@ -53,6 +53,10 @@ end
 % 28-10-2026   Pietro Califano, Claude Fable 5.1   Fix: Kepler's equation was evaluated with the true anomaly
 %                                   in place of the eccentric/hyperbolic anomaly (wrong for every non-circular
 %                                   orbit); Newton solvers warn whenever the tolerance is not reached.
+% 09-11-2026   Pietro Califano, Claude Opus 5.5   Fix: the hyperbolic solver starts from an upper bound of the
+%                                   root, min(asinh(|M|/(e-1)), (6|M|/e)^(1/3)) with the sign of M (the former
+%                                   start failed from |M| of about 51); a non-finite iterate raises an error.
+% 11-11-2026   Pietro Califano, Claude Opus 5.5   Readability pass.
 % -------------------------------------------------------------------------------------------------------------
 %% DEPENDENCIES
 % [-]
@@ -95,39 +99,39 @@ dxStates = zeros(6, double(ui32TimegridSize));
 dxStates(1:6, 1) = dxStateKeplInit; % Copy initial value
 
 % Compute common quantities
-dMeanAngVel = sqrt(dGravParam / abs(dxStateKeplInit(1))^3 ); % Mean angular velocity of the orbit
+dMeanAngVel = sqrt(dGravParam / abs(dxStateKeplInit(1))^3); % Mean angular velocity of the orbit
 
 % Propagation loop
 for idT = 2:double(ui32TimegridSize)
-    
+
     % Initialize propagator
-    dDeltaTime_ = dEvalTimeGrid(idT) - dEvalTimeGrid(idT-1);
-    dxStates(1:6, idT) = dxStates(1:6, idT-1);
+    dDeltaTime_ = dEvalTimeGrid(idT) - dEvalTimeGrid(idT - 1);
+    dxStates(1:6, idT) = dxStates(1:6, idT - 1);
 
     if abs(dDeltaTime_) <= dEpsTime
         continue;
     end
 
     % Call single step propagator dispatcher
-    dxStates(1:6, idT) = PropagateSingleStep(dDeltaTime_, ...
-                                              dxStates(1:6, idT), ...
-                                              dMeanAngVel, ...
-                                              kwargs.dRadAngleTol, ...
-                                              ui32MaxIter);
+    dxStates(1:6, idT) = PropagateSingleStep_(dDeltaTime_, ...
+                                               dxStates(1:6, idT), ...
+                                               dMeanAngVel, ...
+                                               kwargs.dRadAngleTol, ...
+                                               ui32MaxIter);
 end
 
 if kwargs.bConvert2Cart == true
     % Convert all states to cartesian coordinates
-    for idS = 1:size(dxStates,2)
-        dxStates(:,idS) = kepl2rv(dxStates(:,idS), dGravParam, "rad");
+    for idS = 1:size(dxStates, 2)
+        dxStates(:, idS) = kepl2rv(dxStates(:, idS), dGravParam, "rad");
     end
 end
 
 end
 %% LOCAL COMPONENTS
 %%% Single dispatch function
-function dKeplStateNext = PropagateSingleStep(dDeltaTime, dKeplStatePrev, dMeanAngVel, dRadAngleTol, ui32MaxIter)
-arguments
+function dKeplStateNext = PropagateSingleStep_(dDeltaTime, dKeplStatePrev, dMeanAngVel, dRadAngleTol, ui32MaxIter)
+arguments (Input)
     dDeltaTime
     dKeplStatePrev
     dMeanAngVel
@@ -136,18 +140,18 @@ arguments
 end
 
 % Cache useful values
-persistent dSqrt1PlusEcc dEccPrev 
+persistent dSqrt1PlusEcc dEccPrev
 
-if isempty(dEccPrev) 
+if isempty(dEccPrev)
     % Initialize cached values (for faster computation)
     dEccPrev = dKeplStatePrev(2);
-    dSqrt1PlusEcc  = sqrt(1 + dKeplStatePrev(2));
+    dSqrt1PlusEcc = sqrt(1 + dKeplStatePrev(2));
 
 elseif abs(dEccPrev - dKeplStatePrev(2)) > 1E-14
 
     % Eccentricity has changed, recompute values
     dEccPrev = dKeplStatePrev(2);
-    dSqrt1PlusEcc  = sqrt(1 + dKeplStatePrev(2));
+    dSqrt1PlusEcc = sqrt(1 + dKeplStatePrev(2));
 end
 
 dEccThreshold = 1E-10;
@@ -162,12 +166,12 @@ dTrueAnom = dKeplStatePrev(6);
 % anomaly nu carried by the state: E and H come from the half-angle relations
 % tan(E/2) = sqrt((1-e)/(1+e)) tan(nu/2) and sinh(H) = sqrt(e^2-1) sin(nu) / (1 + e cos(nu)) (Vallado, 2.2).
 if dEcc >= 1 + dEccThreshold
-    dHyperbolicAnom = asinh( sqrt(dEcc^2 - 1) * sin(dTrueAnom) / (1 + dEcc * cos(dTrueAnom)) );
+    dHyperbolicAnom = asinh(sqrt(dEcc^2 - 1) * sin(dTrueAnom) / (1 + dEcc * cos(dTrueAnom)));
     dMeanAnom = dEcc * sinh(dHyperbolicAnom) - dHyperbolicAnom;
     i8OrbitType = int8(0); % Hyperbolic
 
 elseif dEcc >= dEccThreshold && dEcc <= 1 - dEccThreshold
-    dEccentricAnom = 2 * atan2( sqrt(1 - dEcc) * sin(dTrueAnom/2), dSqrt1PlusEcc * cos(dTrueAnom/2) );
+    dEccentricAnom = 2 * atan2(sqrt(1 - dEcc) * sin(dTrueAnom / 2), dSqrt1PlusEcc * cos(dTrueAnom / 2));
     dMeanAnom = dEccentricAnom - dEcc * sin(dEccentricAnom);
     i8OrbitType = int8(1); % Elliptical
 
@@ -185,17 +189,19 @@ dMeanAnomNext = dMeanAnom + dMeanAngVel * dDeltaTime;
 switch i8OrbitType
     case 0
         %%% HYPERBOLIC ORBIT
-        dHyperbolicAnomNext = SolveHyperbolicAnomaly(dMeanAnomNext, dEcc, dRadAngleTol, ui32MaxIter);
-        
+        dHyperbolicAnomNext = SolveHyperbolicAnomaly_(dMeanAnomNext, dEcc, dRadAngleTol, ui32MaxIter);
+
         % Compute corresponding True Anomaly and assign output state
-        dKeplStateNext(6) = 2 * atan2( dSqrt1PlusEcc * sinh(dHyperbolicAnomNext/2), sqrt(dEcc-1) * cosh(dHyperbolicAnomNext/2) );
+        dKeplStateNext(6) = 2 * atan2(dSqrt1PlusEcc * sinh(dHyperbolicAnomNext / 2), ...
+                                      sqrt(dEcc - 1) * cosh(dHyperbolicAnomNext / 2));
 
     case 1
         %%% ELLIPTICAL ORBIT
-        dEccentricAnomNext = SolveEllipticalAnomaly(dMeanAnomNext, dEcc, dRadAngleTol, ui32MaxIter);
+        dEccentricAnomNext = SolveEllipticalAnomaly_(dMeanAnomNext, dEcc, dRadAngleTol, ui32MaxIter);
 
         % Compute corresponding True Anomaly and assign output state
-        dKeplStateNext(6) = 2 * atan2( dSqrt1PlusEcc * sin(dEccentricAnomNext/2), sqrt(1-dEcc) * cos(dEccentricAnomNext/2));
+        dKeplStateNext(6) = 2 * atan2(dSqrt1PlusEcc * sin(dEccentricAnomNext / 2), ...
+                                      sqrt(1 - dEcc) * cos(dEccentricAnomNext / 2));
         dKeplStateNext(6) = wrapTo2Pi(dKeplStateNext(6));
 
     case 2
@@ -211,8 +217,8 @@ end
 end
 
 %%% Hyperbolic case
-function dHyperbolicAnomNext = SolveHyperbolicAnomaly(dMeanAnom, dEcc, dRadAngleTol, ui32MaxIter)
-arguments
+function dHyperbolicAnomNext = SolveHyperbolicAnomaly_(dMeanAnom, dEcc, dRadAngleTol, ui32MaxIter)
+arguments (Input)
     dMeanAnom
     dEcc
     dRadAngleTol
@@ -223,29 +229,28 @@ end
 dErrorVal = 1.0; % Error initialization for zero-finding cycle
 ui32IterCount = uint32(0);
 
-% Initial guess generation
-% dHtmp = asinh(dMeanAnom/dEcc);
-
-if dEcc < 1.6
-    if (dMeanAnom > -pi && dMeanAnom < 0) || dMeanAnom > pi
-        dHtmp = dMeanAnom - dEcc;
-    else
-        dHtmp = dMeanAnom + dEcc;
-    end
-else
-    if dEcc < 3.6 && abs(dMeanAnom) > pi
-        dHtmp = dMeanAnom - sign(dMeanAnom) * dEcc;
-    else
-        dHtmp = dMeanAnom/(dEcc-1);
-    end
-end
+% Initial guess: an upper bound of the root (in magnitude), so that Newton-Raphson on the convex, increasing
+% f(H) = e sinh(H) - H - M (H >= 0) converges monotonically and never overshoots. For H >= 0,
+% e sinh(H) - H >= (e - 1) sinh(H) (since sinh(H) >= H) and e sinh(H) - H >= e H^3 / 6, so both
+% asinh(|M| / (e - 1)) and (6 |M| / e)^(1/3) bound the root from above. The negative branch follows from
+% the odd symmetry H(-M) = -H(M). The former start (M -/+ e or M / (e - 1)) stopped unconverged from
+% |M| of about 51 and overflowed sinh above |M| of about 710; asinh(M / e) alone overflows sinh for
+% near-parabolic orbits at small |M| (first step about M / (e - 1)).
+dAbsMeanAnom = abs(dMeanAnom);
+dHtmp = sign(dMeanAnom) * min(asinh(dAbsMeanAnom / (dEcc - 1)), nthroot(6 * dAbsMeanAnom / dEcc, 3));
 
 % Newton-Raphson cycle
 dHyperbolicAnomNext = dHtmp;
 while dErrorVal > dRadAngleTol && ui32IterCount < ui32MaxIter
 
     % Execute iteration of Newton-Raphson to solve for H anomaly
-    dHyperbolicAnomNext = dHtmp + ( dMeanAnom - dEcc*sinh(dHtmp) + dHtmp )./(dEcc * cosh(dHtmp) - 1);
+    dHyperbolicAnomNext = dHtmp + (dMeanAnom - dEcc * sinh(dHtmp) + dHtmp) ./ (dEcc * cosh(dHtmp) - 1);
+
+    % Stop on a non-finite iterate (non-finite mean anomaly or sinh overflow) instead of returning NaN
+    if ~isfinite(dHyperbolicAnomNext)
+        error('PropagateKeplerianElems:nonFiniteAnomaly', ...
+            'Hyperbolic anomaly iterate is not finite (M = %.6g, e = %.6g).', dMeanAnom, dEcc);
+    end
 
     % Evaluate error for convergence check
     dErrorVal = abs(dHyperbolicAnomNext - dHtmp);
@@ -262,8 +267,8 @@ end
 end
 
 %%% Elliptical case
-function dEccentricAnomNext = SolveEllipticalAnomaly(dMeanAnom, dEcc, dRadAngleTol, ui32MaxIter)
-arguments
+function dEccentricAnomNext = SolveEllipticalAnomaly_(dMeanAnom, dEcc, dRadAngleTol, ui32MaxIter)
+arguments (Input)
     dMeanAnom
     dEcc
     dRadAngleTol
@@ -287,7 +292,7 @@ dEccentricAnomNext = dEtmp;
 while dErrorValue > dRadAngleTol && ui32IterCount < ui32MaxIter
 
     % Execute iteration of Newton-Raphson to solve for E anomaly
-    dEccentricAnomNext = dEtmp + ( dMeanAnom - dEtmp + dEcc * sin(dEtmp) )./(1 - dEcc*cos(dEtmp));
+    dEccentricAnomNext = dEtmp + (dMeanAnom - dEtmp + dEcc * sin(dEtmp)) ./ (1 - dEcc * cos(dEtmp));
 
     % Evaluate error for convergence check
     dErrorValue = abs(dEccentricAnomNext - dEtmp);

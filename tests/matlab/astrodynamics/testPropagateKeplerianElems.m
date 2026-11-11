@@ -211,6 +211,34 @@ classdef testPropagateKeplerianElems < matlab.unittest.TestCase
             end
         end
 
+        function TestHyperbolicSolverConvergesAtLargeMeanAnomaly(testCase)
+            % Regression of 09-11-2026: Newton-Raphson from the former start value (M -/+ e or M/(e-1)) stopped
+            % unconverged from |M| = 50.9, 51.0, 51.4 (e = 1.1, 1.5, 2.5) and 198.1 (e = 5), and overflowed sinh
+            % above |M| of about 710. Each case must satisfy Kepler's equation without a warning.
+            for dEcc = [1.1, 1.5, 2.5, 5.0]
+                for dTargetMeanAnom = [100, -100, 1e4, -1e4]
+                    dResidual = testPropagateKeplerianElems.PropagateUnitHyperbolaToMeanAnomaly_(testCase, ...
+                        dEcc, ...
+                        dTargetMeanAnom);
+                    testCase.verifyLessThanOrEqual(dResidual, 1e-9 * max(1, abs(dTargetMeanAnom)), ...
+                        sprintf('e = %g, M = %g', dEcc, dTargetMeanAnom));
+                end
+            end
+        end
+
+        function TestHyperbolicSolverConvergesNearParabolic(testCase)
+            % e = 1 + 1e-4: |M| = 100 failed with the former start value; |M| = 0.01 fails with a plain
+            % asinh(M/e) start, whose first Newton step (about M/(e-1)) overflows sinh.
+            dEcc = 1 + 1e-4;
+            for dTargetMeanAnom = [0.01, -0.01, 100, -100]
+                dResidual = testPropagateKeplerianElems.PropagateUnitHyperbolaToMeanAnomaly_(testCase, ...
+                    dEcc, ...
+                    dTargetMeanAnom);
+                testCase.verifyLessThanOrEqual(dResidual, 1e-9 * max(1, abs(dTargetMeanAnom)), ...
+                    sprintf('e = 1 + 1e-4, M = %g', dTargetMeanAnom));
+            end
+        end
+
         function TestInvalidEccentricityError(testCase)
             dxStateKeplInit = [7000; -0.1; 0; 0; 0; 0];
             dGravParam = 398600.4418;
@@ -222,6 +250,33 @@ classdef testPropagateKeplerianElems < matlab.unittest.TestCase
     methods (Static, Access = private)
         function dWrappedErr = ComputeWrappedAngleError_(dAngleA, dAngleB)
             dWrappedErr = abs(atan2(sin(dAngleA - dAngleB), cos(dAngleA - dAngleB)));
+        end
+
+        function dResidual = PropagateUnitHyperbolaToMeanAnomaly_(testCase, dEcc, dTargetMeanAnom)
+            % Propagate a unit hyperbola (GM = 1, a = -1, mean motion 1 rad/s) to the target mean anomaly, check
+            % that no warning is raised, and return |e sinh(H) - H - M| for the returned true anomaly. Positive
+            % targets start at periapsis; negative ones at H0 = -(H* + 0.3), with H* the root for |M| found by
+            % fzero (independent of the solver under test), so the start lies below the target. The small
+            % offset keeps the true anomaly far enough from its asymptote that the round trip H -> nu -> H
+            % stays well below the tolerance.
+            if dTargetMeanAnom >= 0
+                dHyperbolicAnomInit = 0.0;
+            else
+                dAbsMeanAnom = abs(dTargetMeanAnom);
+                dRootAnom = fzero(@(dH) dEcc * sinh(dH) - dH - dAbsMeanAnom, ...
+                    [0, asinh(dAbsMeanAnom / (dEcc - 1)) + 1]);
+                dHyperbolicAnomInit = -(dRootAnom + 0.3);
+            end
+            dTrueAnomInit = 2.0 * atan(sqrt((dEcc + 1) / (dEcc - 1)) * tanh(dHyperbolicAnomInit / 2.0));
+            dMeanAnomInit = dEcc * sinh(dHyperbolicAnomInit) - dHyperbolicAnomInit;
+            dxStateKeplInit = [-1.0; dEcc; 0.3; 0.2; 0.1; dTrueAnomInit];
+
+            dxStates = testCase.verifyWarningFree(@() PropagateKeplerianElems(dxStateKeplInit, ...
+                1.0, ...
+                [0, dTargetMeanAnom - dMeanAnomInit]));
+
+            dHyperbolicAnom = 2.0 * atanh(sqrt((dEcc - 1) / (dEcc + 1)) * tan(dxStates(6, end) / 2.0));
+            dResidual = abs(dEcc * sinh(dHyperbolicAnom) - dHyperbolicAnom - dTargetMeanAnom);
         end
 
         function VerifyAgainstTwoBodyIntegration_(testCase, dxStateKeplInit, dGravParam, dTimeGridSec)
