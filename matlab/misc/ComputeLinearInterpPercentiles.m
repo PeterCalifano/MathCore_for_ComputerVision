@@ -11,7 +11,9 @@ function dPercentileValues = ComputeLinearInterpPercentiles(dValues, dPercentile
 % MATLAB prctile (R2024b) implements only the midpoint rule (definition 5, x(i) at 100*(i - 0.5)/n).
 % The two rules differ most in sparse tails, for example in small per-run counts.
 % NaN samples are omitted in each slice independently. A slice without samples, including an empty
-% vector, returns NaN, as prctile does.
+% vector, returns NaN, as prctile does. Equal neighbors return their common value, an infinite
+% neighbor returns its limit (for example, -Inf between -Inf and 1), and -Inf next to +Inf
+% returns NaN.
 % -------------------------------------------------------------------------------------------------------------
 %% INPUT
 % dValues            [any]  Real samples, reduced along dimension ui32Dim.
@@ -25,6 +27,7 @@ function dPercentileValues = ComputeLinearInterpPercentiles(dValues, dPercentile
 % -------------------------------------------------------------------------------------------------------------
 %% CHANGELOG
 % 15-11-2026  Pietro Califano, Claude Opus 5.5  Add linear-interpolation percentiles.
+% 15-11-2026  Pietro Califano, Claude Opus 5.5  Handle infinite neighbors in the interpolation.
 % -------------------------------------------------------------------------------------------------------------
 %% DEPENDENCIES
 % None.
@@ -58,11 +61,20 @@ for idCol = 1:size(dColumns, 2)
     dUpperIdx = min(dLowerIdx + 1, dNumSamples);
     dFraction = dPosition - dLowerIdx;
 
-    % Interpolate only at fractional positions, so that infinite samples do not give Inf - Inf.
-    dResult = dSorted(dLowerIdx);
-    bInterp = dFraction > 0;
-    dResult(bInterp) = dResult(bInterp) + ...
-        dFraction(bInterp) .* (dSorted(dUpperIdx(bInterp)) - dResult(bInterp));
+    % Interpolate only between distinct neighbors; equal neighbors, including equal infinities,
+    % return their common value.
+    dLower = dSorted(dLowerIdx);
+    dUpper = dSorted(dUpperIdx);
+    bInterp = dFraction > 0 & dUpper ~= dLower;
+    bFinite = bInterp & isfinite(dLower) & isfinite(dUpper);
+    bInfinite = bInterp & ~bFinite;
+
+    dResult = dLower;
+    dResult(bFinite) = dLower(bFinite) + dFraction(bFinite) .* (dUpper(bFinite) - dLower(bFinite));
+
+    % The weighted form returns the infinite neighbor, or NaN for -Inf next to +Inf.
+    dResult(bInfinite) = (1 - dFraction(bInfinite)) .* dLower(bInfinite) + ...
+        dFraction(bInfinite) .* dUpper(bInfinite);
     dPercentileColumns(:, idCol) = dResult;
 
 end

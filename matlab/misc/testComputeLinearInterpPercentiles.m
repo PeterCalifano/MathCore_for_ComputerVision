@@ -5,6 +5,7 @@ function tests = testComputeLinearInterpPercentiles
 % -------------------------------------------------------------------------------------------------------------
 %% CHANGELOG
 % 15-11-2026  Pietro Califano, Claude Opus 5.5  Add tests of the linear-interpolation percentiles.
+% 15-11-2026  Pietro Califano, Claude Opus 5.5  Test infinite neighbors and opposite infinities.
 % -------------------------------------------------------------------------------------------------------------
 tests = functiontests(localfunctions);
 end
@@ -57,6 +58,17 @@ end
 
 function testInfiniteSamples(testCase)
 verifyEqual(testCase, ComputeLinearInterpPercentiles([1, Inf], [0, 50, 100]), [1, Inf, Inf]);
+verifyEqual(testCase, ComputeLinearInterpPercentiles([-Inf, 1], [0, 50, 100]), [-Inf, -Inf, 1]);
+verifyEqual(testCase, ComputeLinearInterpPercentiles([Inf, Inf], 50), Inf);
+verifyEqual(testCase, ComputeLinearInterpPercentiles([-Inf, -Inf], 50), -Inf);
+verifyEqual(testCase, ComputeLinearInterpPercentiles([-Inf, 2, 2, Inf], [25, 50, 75]), ...
+    [-Inf, 2, Inf]);
+end
+
+function testOppositeInfinitiesGiveNan(testCase)
+dResult = ComputeLinearInterpPercentiles([-Inf, Inf], [0, 50, 100]);
+verifyEqual(testCase, dResult([1, 3]), [-Inf, Inf]);
+verifyTrue(testCase, isnan(dResult(2)));
 end
 
 function testRejectsOutOfRangePercentiles(testCase)
